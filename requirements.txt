@@ -411,4 +411,4 @@ tensorboard==2.16.2
 tensorboard-data-server==0.7.2
 tensorflow==2.16.1
 tensorflow-io-gcs-filesystem==0.37.1
-termcolor==2.3.
+termcolor==2.3.0
