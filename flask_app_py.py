@@ -163,45 +163,48 @@ def get_account_data():
 def get_positions_data():
     """Fetch open positions from HyperLiquid"""
     if not EXCHANGE_CONNECTED or n is None:
-        # Demo mode: return empty positions
         return []
     
     try:
+        # Get the Account object (not just address string)
         account = _get_account()
         
-        # Try different position fetching methods
-        if hasattr(n, 'get_all_positions'):
-            positions = n.get_all_positions(account.address)
-        elif hasattr(n, 'fetch_all_open_positions'):
-            positions_dict = n.fetch_all_open_positions()
-            positions = []
-            for symbol, pos_list in positions_dict.items():
-                for pos in pos_list:
+        # Import symbols from config
+        try:
+            from src.config import HYPERLIQUID_SYMBOLS as SYMBOLS
+        except ImportError:
+            SYMBOLS = ['BTC', 'ETH', 'SOL']
+        
+        positions = []
+        
+        for symbol in SYMBOLS:
+            try:
+                # Pass the account object (not address string)
+                pos_data = n.get_position(symbol, account)
+                
+                # Unpack the tuple
+                _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
+                
+                # Only add if position exists
+                if im_in_pos and pos_size != 0:
                     positions.append({
-                        'symbol': pos['symbol'],
-                        'size': pos['size'],
-                        'entry_price': pos['entry_price'],
-                        'pnl_percent': pos['pnl_percent'],
-                        'is_long': pos['is_long']
+                        "symbol": symbol,
+                        "size": float(pos_size),
+                        "entry_price": float(entry_px),
+                        "pnl_percent": float(pnl_perc),
+                        "side": "LONG" if is_long else "SHORT"
                     })
-        else:
-            positions = []
+                    
+            except Exception as e:
+                # Silently skip symbols with no positions or errors
+                continue
         
-        # Format positions for frontend
-        formatted_positions = []
-        for pos in positions:
-            formatted_positions.append({
-                "symbol": pos.get("symbol", "UNKNOWN"),
-                "size": float(pos.get("size", 0)),
-                "entry_price": float(pos.get("entry_price", 0)),
-                "pnl_percent": float(pos.get("pnl_percent", 0)),
-                "side": "LONG" if pos.get("is_long", True) else "SHORT"
-            })
-        
-        return formatted_positions
+        return positions
         
     except Exception as e:
         print(f"❌ Error fetching positions: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
