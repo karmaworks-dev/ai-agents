@@ -85,7 +85,7 @@ ecdsa==0.18.0
 editor==1.6.6
 emoji==2.14.0
 eth-abi==4.2.1
-eth-account==0.12.4
+eth-account==0.13.7
 eth-hash==0.7.1
 eth-keyfile==0.8.1
 eth-keys==0.7.0
@@ -294,7 +294,7 @@ pure-eval==0.2.2
 py==1.11.0
 py-ecc==8.0.0
 py_clob_client
-py_order_utils==0.3.2
+py_order_utils
 pyaml==24.4.0
 pyarrow
 pyasn1==0.6.0
