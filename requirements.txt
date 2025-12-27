@@ -89,7 +89,7 @@ eth-account==0.13.6
 eth-hash==0.7.1
 eth-keyfile==0.8.1
 eth-keys==0.7.0
-eth-rlp==1.0.1
+eth-rlp
 eth-typing==4.4.0
 eth-utils
 exceptiongroup==1.2.0
