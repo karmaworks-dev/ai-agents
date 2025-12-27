@@ -307,8 +307,8 @@ pycares==4.4.0
 pycountry==24.6.1
 pycparser
 pycryptodome==3.23.0
-pydantic==2.12.1
-pydantic_core==2.41.3
+pydantic
+pydantic_core
 pyee==11.1.0
 pygame==2.6.0
 PyGetWindow==0.0.9
