@@ -13,7 +13,7 @@ from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 from dotenv import load_dotenv
 from flask_cors import CORS
-from src.agents.trading_agent import TradingAgent
+from trading_agent import TradingAgent
 
 # ============================================================================
 # SETUP & CONFIGURATION
