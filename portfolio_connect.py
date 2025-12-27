@@ -63,7 +63,6 @@ def check_hyperliquid_account():
 if __name__ == "__main__":
     print("🔄 Starting Hyperliquid monitoring script...")
     print("📅 Script will check your account every 5 minutes.")
-    print("🛑 Press Ctrl+C to stop.\n")
     
     while True:
         try:

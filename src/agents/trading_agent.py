@@ -130,16 +130,16 @@ from eth_account import Account
 EXCHANGE = "HYPERLIQUID"  # Options: "ASTER", "HYPERLIQUID", "SOLANA"
 
 # 🌊 AI MODE SELECTION
-USE_SWARM_MODE = True # True = Swarm Mode (all Models), False = Single Model
+USE_SWARM_MODE = False # True = Swarm Mode (all Models), False = Single Model
 
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
 
 # 🤖 SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'gemini' 
-AI_MODEL_NAME = 'gemini-2.5-pro'  # Strong Gemini 2.5 model
-AI_TEMPERATURE = 0.3   
-AI_MAX_TOKENS = 2000   
+AI_MODEL_NAME = 'gemini-2.5-flash'  # Fast Gemini 2.5 model
+AI_TEMPERATURE = 0.7   
+AI_MAX_TOKENS = 3000   
 
 # 💰 POSITION SIZING & RISK MANAGEMENT
 USE_PORTFOLIO_ALLOCATION = True 
