@@ -303,7 +303,7 @@ pycares==4.4.0
 pycountry==24.6.1
 pycparser==2.21
 pycryptodome==3.23.0
-pydantic==1.10.13
+pydantic
 pydantic_core
 pyee==11.1.0
 pygame==2.6.0
