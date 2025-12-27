@@ -160,31 +160,30 @@ def get_account_data():
 
 
 def get_positions_data():
-    """Fetch open positions from HyperLiquid"""
+    """Fetch live open positions from HyperLiquid (ignore saved trades)"""
     if not EXCHANGE_CONNECTED or n is None:
+        # Return empty list if exchange is disconnected or in demo mode
         return []
-    
+
     try:
-        # Get the Account object (not just address string)
+        # Get the Account object
         account = _get_account()
-        
-        # Import symbols from config
+
+        # Import symbols from config, fallback to defaults
         try:
             from src.config import HYPERLIQUID_SYMBOLS as SYMBOLS
         except ImportError:
             SYMBOLS = ['BTC', 'ETH', 'SOL']
-        
+
         positions = []
-        
+
         for symbol in SYMBOLS:
             try:
-                # Pass the account object (not address string)
+                # Fetch live position from the exchange
                 pos_data = n.get_position(symbol, account)
-                
-                # Unpack the tuple
+                # Unpack the returned tuple
                 _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
-                
-                # Only add if position exists
+
                 if im_in_pos and pos_size != 0:
                     positions.append({
                         "symbol": symbol,
@@ -193,15 +192,15 @@ def get_positions_data():
                         "pnl_percent": float(pnl_perc),
                         "side": "LONG" if is_long else "SHORT"
                     })
-                    
-            except Exception as e:
-                # Silently skip symbols with no positions or errors
+
+            except Exception:
+                # Skip symbols with no position or errors
                 continue
-        
+
         return positions
-        
+
     except Exception as e:
-        print(f"❌ Error fetching positions: {e}")
+        print(f"❌ Error fetching positions from exchange: {e}")
         import traceback
         traceback.print_exc()
         return []
