@@ -479,3 +479,39 @@ yfinance==0.2.43
 youtube-transcript-api==1.2.3
 yt-dlp==2025.1.26
 zipp==3.19.2
+# Flask web framework
+flask==3.0.0
+werkzeug==3.0.0
+
+# Environment variables
+python-dotenv==1.0.0
+
+# HyperLiquid trading
+hyperliquid-python-sdk
+eth-account==0.11.0
+
+# Data processing
+pandas==2.1.0
+pandas-ta==0.3.14b0
+numpy==1.24.3
+
+# API requests
+requests==2.31.0
+
+# Terminal colors
+termcolor==2.3.0
+
+# Solana (optional, for Solana mode)
+solders==0.18.1
+
+# Date/time handling
+python-dateutil==2.8.2
+
+# JSON handling (built-in, but explicitly listed)
+# json - built-in
+
+# Threading (built-in)
+# threading - built-in
+
+# Pathlib (built-in)
+# pathlib - built-in
