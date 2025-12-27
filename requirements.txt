@@ -46,7 +46,7 @@ Bottleneck
 Brotli==1.0.9
 build==1.2.2.post1
 cachetools==4.2.4
-cbpro==1.1.4
+cbpro
 ccxt==4.2.87
 certifi
 cffi==1.16.0
@@ -352,7 +352,7 @@ referencing==0.36.2
 regex==2024.11.6
 replicate==0.32.0
 reportlab==4.0.7
-requests==2.31.0
+requests
 requests-mock==1.12.1
 requests-oauthlib==1.3.1
 requests-toolbelt==1.0.0
