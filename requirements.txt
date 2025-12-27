@@ -87,7 +87,7 @@ editor==1.6.6
 elevenlabs
 emoji==2.14.0
 eth-abi==4.2.1
-eth-account==0.11.0
+eth-account
 eth-hash==0.7.1
 eth-keyfile==0.8.1
 eth-keys==0.7.0
