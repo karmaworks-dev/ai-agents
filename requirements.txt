@@ -92,7 +92,7 @@ eth-keyfile==0.8.1
 eth-keys==0.7.0
 eth-rlp==1.0.1
 eth-typing==4.4.0
-eth-utils==2.3.2
+eth-utils
 exceptiongroup==1.2.0
 executing==2.0.1
 fake-useragent==2.2.0
