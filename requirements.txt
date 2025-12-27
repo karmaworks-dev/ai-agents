@@ -85,7 +85,7 @@ ecdsa==0.18.0
 editor==1.6.6
 emoji==2.14.0
 eth-abi==4.2.1
-eth-account==0.12.4
+eth-account==0.11.0
 eth-hash==0.7.1
 eth-keyfile==0.8.1
 eth-keys==0.7.0
