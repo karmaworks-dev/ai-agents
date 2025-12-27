@@ -51,7 +51,7 @@ certifi
 cffi==1.16.0
 char==0.1.2
 charset-normalizer
-ckzg==2.1.1
+ckzg
 click==8.1.7
 cloudpickle==3.1.0
 cloudscraper==1.2.71
