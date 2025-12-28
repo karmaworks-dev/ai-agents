@@ -1144,6 +1144,20 @@ Trading Recommendations (BUY signals only):
                             n.ai_entry(token, amount)
 
                         print(f"✅ Entry complete for {token}")
+                    
+                    # ADD THIS - Log position open
+                    try:
+                        import sys
+                        from pathlib import Path
+                        parent_dir = Path(__file__).parent.parent
+                        sys.path.insert(0, str(parent_dir))
+                        from trading_app import log_position_open
+                        
+                        # Determine position value (with leverage)
+                        notional_value = float(amount) * LEVERAGE
+                        log_position_open(token, "LONG", notional_value)
+                    except Exception:
+                        pass
                     else:
                         print(f"⏸️ Position already at target size for {token}")
 
@@ -1192,6 +1206,18 @@ Trading Recommendations (BUY signals only):
                         else:
                             n.chunk_kill(token, max_usd_order_size, slippage)
                         cprint("✅ Position closed successfully!", "white", "on_green")
+                        # Log short open
+                            try:
+                                import sys
+                                from pathlib import Path
+                                parent_dir = Path(__file__).parent.parent
+                                sys.path.insert(0, str(parent_dir))
+                                from trading_app import log_position_open
+                                
+                                log_position_open(token, "SHORT", position_size)
+                            except Exception:
+                                pass
+                                
                     except Exception as e:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
 
