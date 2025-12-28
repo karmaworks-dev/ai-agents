@@ -451,36 +451,61 @@ def save_agent_state(state):
 # ============================================================================
 
 def run_trading_agent():
-    """Run the trading agent in a loop"""
+    """Run the trading agent in a loop with output capture"""
     global agent_running, stop_agent_flag
     
     add_console_log("Trading agent started", "success")
     
     while agent_running and not stop_agent_flag:
         try:
-            add_console_log(f"Running cycle at {datetime.now().strftime('%H:%M:%S')}", "info")
+            add_console_log(f"Running analysis cycle", "info")
             
-            # Try multiple import paths
+            # Capture start time
+            cycle_start = time.time()
+            
+            # Import trading agent
             try:
-                # Try src.agents.trading_agent first
                 from src.agents.trading_agent import TradingAgent
             except ImportError:
                 try:
-                    # Try root level trading_agent
                     from trading_agent import TradingAgent
                 except ImportError:
-                    # Last resort: import from current directory
                     import sys
                     sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
                     from trading_agent import TradingAgent
             
+            # Create agent instance
             agent = TradingAgent()
+            
+            # Get tokens list
+            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                from trading_agent import SYMBOLS as tokens
+            else:
+                from trading_agent import MONITORED_TOKENS as tokens
+            
+            # Log analysis start
+            add_console_log(f"Analyzing {len(tokens)} tokens", "info")
+            
+            # Run the trading cycle
             agent.run_trading_cycle()
             
-            add_console_log("Cycle complete", "success")
+            # Calculate cycle duration
+            cycle_duration = int(time.time() - cycle_start)
             
-            # Wait 60 minutes (checking stop flag every minute)
-            add_console_log("⏳Next cycle in 60 min", "info")
+            add_console_log(f"Cycle complete ({cycle_duration}s)", "success")
+            
+            # Get recommendations summary
+            if hasattr(agent, 'recommendations_df') and len(agent.recommendations_df) > 0:
+                buy_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'BUY'])
+                sell_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'SELL'])
+                nothing_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'NOTHING'])
+                
+                add_console_log(f"Signals: {buy_count} BUY, {sell_count} SELL, {nothing_count} HOLD", "info")
+            
+            # Wait 60 minutes before next cycle
+            add_console_log("Next cycle in 60 min", "info")
+            
+            # Wait with stop flag checking every minute
             for i in range(60):
                 if stop_agent_flag:
                     add_console_log("Stop signal received", "info")
@@ -491,7 +516,7 @@ def run_trading_agent():
             error_msg = f"Cycle error: {str(e)}"
             add_console_log(error_msg, "error")
             import traceback
-            traceback.print_exc()  # This will show full error
+            traceback.print_exc()
             add_console_log("Retrying in 60 sec", "warning")
             time.sleep(60)
     
