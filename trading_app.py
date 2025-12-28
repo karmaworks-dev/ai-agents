@@ -45,10 +45,11 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 TRADES_FILE = DATA_DIR / "trades.json"
 HISTORY_FILE = DATA_DIR / "balance_history.json"
 CONSOLE_FILE = DATA_DIR / "console_logs.json"
+AGENT_STATE_FILE = DATA_DIR / "agent_state.json"
 
 # Agent control variables
 agent_thread = None
-agent_running = False
+agent_running = False  # Always start stopped - never auto-start
 stop_agent_flag = False
 
 # ============================================================================
@@ -175,7 +176,7 @@ def get_positions_data():
         try:
             from src.config import HYPERLIQUID_SYMBOLS as SYMBOLS
         except ImportError:
-            SYMBOLS = ['BTC', 'ETH', 'SOL']
+            SYMBOLS = ['BTC', 'ETH', 'SOL', 'LTC']
 
         positions = []
 
@@ -187,10 +188,24 @@ def get_positions_data():
                 _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
 
                 if im_in_pos and pos_size != 0:
+                    # Fetch current mark price
+                    try:
+                        ask, bid, _ = n.ask_bid(symbol)
+                        mark_price = (ask + bid) / 2
+                    except Exception as price_err:
+                        print(f"⚠️ Error fetching mark price for {symbol}: {price_err}")
+                        # Fallback to entry price if market data unavailable
+                        mark_price = float(entry_px)
+                    
+                    # Calculate position value in USD
+                    position_value = abs(float(pos_size)) * mark_price
+                    
                     positions.append({
                         "symbol": symbol,
                         "size": float(pos_size),
                         "entry_price": float(entry_px),
+                        "mark_price": float(mark_price),           # NEW
+                        "position_value": float(position_value),   # NEW
                         "pnl_percent": float(pnl_perc),
                         "side": "LONG" if is_long else "SHORT"
                     })
@@ -260,13 +275,29 @@ def save_trade(trade_data):
         
         with open(TRADES_FILE, 'w') as f:
             json.dump(trades, f, indent=2)
+        
+        # Log trade to console
+        symbol = trade_data.get('symbol', 'Unknown')
+        side = trade_data.get('side', 'LONG')
+        pnl = trade_data.get('pnl', 0)
+        
+        # Format log message
+        side_emoji = "📈" if side == "LONG" else "📉"
+        log_message = f"{side_emoji} Closed {side} {symbol} ${pnl:+.2f}"
+        
+        add_console_log(log_message, "trade")
             
     except Exception as e:
         print(f"⚠️ Error saving trade: {e}")
 
 
-def add_console_log(message):
-    """Add a log message to console"""
+def add_console_log(message, level="info"):
+    """
+    Add a log message to console with level support
+    Args:
+        message (str): Log message text
+        level (str): Log level - "info", "success", "error", "warning", "trade"
+    """
     try:
         if CONSOLE_FILE.exists():
             with open(CONSOLE_FILE, 'r') as f:
@@ -276,7 +307,8 @@ def add_console_log(message):
         
         logs.append({
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message)
+            "message": str(message),
+            "level": level
         })
         
         logs = logs[-50:]  # Keep last 50 logs
@@ -302,6 +334,37 @@ def get_console_logs():
         print(f"⚠️ Error loading console logs: {e}")
         return []
 
+def load_agent_state():
+    """Load agent state from persistent storage"""
+    try:
+        if AGENT_STATE_FILE.exists():
+            with open(AGENT_STATE_FILE, 'r') as f:
+                return json.load(f)
+        
+        # Return default state if file doesn't exist
+        return {
+            "running": False,
+            "last_started": None,
+            "last_stopped": None,
+            "total_cycles": 0
+        }
+    except Exception as e:
+        print(f"⚠️ Error loading agent state: {e}")
+        return {
+            "running": False,
+            "last_started": None,
+            "last_stopped": None,
+            "total_cycles": 0
+        }
+
+
+def save_agent_state(state):
+    """Save agent state to persistent storage"""
+    try:
+        with open(AGENT_STATE_FILE, 'w') as f:
+            json.dump(state, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Error saving agent state: {e}")
 
 # ============================================================================
 # TRADING AGENT CONTROL
@@ -311,11 +374,11 @@ def run_trading_agent():
     """Run the trading agent in a loop"""
     global agent_running, stop_agent_flag
     
-    add_console_log("🤖 Trading agent started")
+    add_console_log("Trading agent started", "success")
     
     while agent_running and not stop_agent_flag:
         try:
-            add_console_log(f"🔄 Running trading cycle at {datetime.now().strftime('%H:%M:%S')}")
+            add_console_log(f"Running cycle at {datetime.now().strftime('%H:%M:%S')}", "info")
             
             # Try multiple import paths
             try:
@@ -334,27 +397,26 @@ def run_trading_agent():
             agent = TradingAgent()
             agent.run_trading_cycle()
             
-            add_console_log("✅ Trading cycle completed")
+            add_console_log("Cycle complete", "success")
             
             # Wait 60 minutes (checking stop flag every minute)
-            add_console_log("⏳ Next cycle in 60 minutes...")
+            add_console_log("⏳Next cycle in 60 min", "info")
             for i in range(60):
                 if stop_agent_flag:
-                    add_console_log("⏹️ Stop signal received, exiting...")
+                    add_console_log("Stop signal received", "info")
                     break
                 time.sleep(60)
             
         except Exception as e:
-            error_msg = f"❌ Error in trading cycle: {str(e)}"
-            print(error_msg)
-            add_console_log(error_msg)
+            error_msg = f"Cycle error: {str(e)}"
+            add_console_log(error_msg, "error")
             import traceback
             traceback.print_exc()  # This will show full error
-            add_console_log("⏳ Retrying in 60 seconds...")
+            add_console_log("Retrying in 60 sec", "warning")
             time.sleep(60)
     
     agent_running = False
-    add_console_log("⏹️ Trading agent stopped")
+    add_console_log("Agent stopped", "info")
 
 # ============================================================================
 # FLASK ROUTES
@@ -443,16 +505,24 @@ def start_agent():
     
     agent_running = True
     stop_agent_flag = False
+    
+    # Save state with timestamp
+    state = load_agent_state()
+    state["running"] = True
+    state["last_started"] = datetime.now().isoformat()
+    state["total_cycles"] = state.get("total_cycles", 0) + 1
+    save_agent_state(state)
+    
+    # Start agent thread
     agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
     agent_thread.start()
     
-    add_console_log("▶️ Trading agent started via dashboard")
+    add_console_log("Trading agent started via dashboard", "success")
     
     return jsonify({
         "status": "started",
         "message": "Trading agent started successfully"
     })
-
 
 @app.route('/api/stop', methods=['POST'])
 def stop_agent():
@@ -468,20 +538,30 @@ def stop_agent():
     stop_agent_flag = True
     agent_running = False
     
-    add_console_log("⏹️ Trading agent stop requested via dashboard")
+    # Save state with timestamp
+    state = load_agent_state()
+    state["running"] = False
+    state["last_stopped"] = datetime.now().isoformat()
+    save_agent_state(state)
+    
+    add_console_log("Trading agent stop requested via dashboard", "info")
     
     return jsonify({
         "status": "stopped",
         "message": "Trading agent stopped successfully"
     })
 
-
 @app.route('/api/status')
 def get_status():
     """Get current agent and exchange status"""
+    state = load_agent_state()
+    
     return jsonify({
         "running": agent_running,
         "connected": EXCHANGE_CONNECTED,
+        "last_started": state.get("last_started"),
+        "last_stopped": state.get("last_stopped"),
+        "total_cycles": state.get("total_cycles", 0),
         "timestamp": datetime.now().isoformat()
     })
 
