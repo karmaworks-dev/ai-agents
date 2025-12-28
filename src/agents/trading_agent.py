@@ -1171,177 +1171,172 @@ Trading Recommendations (BUY signals only):
             print("🔧 Moon Dev suggests checking the logs and trying again!")
     
     def handle_exits(self):
-        """Check and exit positions based on SELL recommendations"""
-        import inspect  # ✅ add here inside method or at top of file (see below)
+    """Check and exit positions based on SELL recommendations"""
+    import inspect
 
-        cprint("\n🔄 Checking for positions to exit...", "white", "on_blue")
+    cprint("\n🔄 Checking for positions to exit...", "white", "on_blue")
 
-        for _, row in self.recommendations_df.iterrows():
-            token = row["token"]
-            token_short = token[:8] + "..." if len(token) > 8 else token
+    for _, row in self.recommendations_df.iterrows():
+        token = row["token"]
+        token_short = token[:8] + "..." if len(token) > 8 else token
 
-            if token in EXCLUDED_TOKENS:
-                continue
+        if token in EXCLUDED_TOKENS:
+            continue
 
-            action = row["action"]
+        action = row["action"]
 
-            if EXCHANGE == "HYPERLIQUID":
-                current_position = n.get_token_balance_usd(token, self.account)
+        if EXCHANGE == "HYPERLIQUID":
+            current_position = n.get_token_balance_usd(token, self.account)
+        else:
+            current_position = n.get_token_balance_usd(token)
+
+        cprint(f"\n{'=' * 60}", "cyan")
+        cprint(f"🎯 Token: {token_short}", "cyan", attrs=["bold"])
+        cprint(f"🤖 Signal: {action} ({row['confidence']}% confidence)", "yellow", attrs=["bold"])
+        cprint(f"💼 Current Position: ${current_position:.2f}", "white")
+        cprint(f"{'=' * 60}", "cyan")
+
+        if current_position > 0:
+            # ============= CASE: HAVE POSITION =============
+            if action == "SELL":
+                cprint("🚨 SELL signal with position - CLOSING POSITION", "white", "on_red")
+                try:
+                    if EXCHANGE == "HYPERLIQUID":
+                        n.close_complete_position(token, self.account)
+                    else:
+                        n.chunk_kill(token, max_usd_order_size, slippage)
+                    cprint("✅ Position closed successfully!", "white", "on_green")
+                except Exception as e:
+                    cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
+
+            elif action == "NOTHING":
+                cprint("⏸️  DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
+                cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
+
             else:
-                current_position = n.get_token_balance_usd(token)
+                cprint("✅ BUY signal - KEEPING POSITION", "white", "on_green")
+                cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
 
-            cprint(f"\n{'=' * 60}", "cyan")
-            cprint(f"🎯 Token: {token_short}", "cyan", attrs=["bold"])
-            cprint(f"🤖 Signal: {action} ({row['confidence']}% confidence)", "yellow", attrs=["bold"])
-            cprint(f"💼 Current Position: ${current_position:.2f}", "white")
-            cprint(f"{'=' * 60}", "cyan")
+        else:
+            # ============= CASE: NO POSITION =============
+            if action == "SELL":
+                if LONG_ONLY:
+                    cprint("⏭️  SELL signal but NO POSITION to close", "white", "on_blue")
+                    cprint("📊 LONG ONLY mode: Can't open short, doing nothing", "cyan")
+                else:
+                    account_balance = get_account_balance(self.account)
+                    position_size = calculate_position_size(account_balance)
 
-            if current_position > 0:
-                # ============= CASE: HAVE POSITION =============
-                if action == "SELL":
-                    cprint("🚨 SELL signal with position - CLOSING POSITION", "white", "on_red")
+                    cprint("📉 SELL signal with no position - OPENING SHORT", "white", "on_red")
+                    cprint(f"⚡ {EXCHANGE} mode: Opening ${position_size:,.2f} short position", "yellow")
+
                     try:
-                        if EXCHANGE == "HYPERLIQUID":
-                            n.close_complete_position(token, self.account)
+                        # Dynamically detect which function to use
+                        if hasattr(n, "open_short"):
+                            fn = n.open_short
+                            cprint(f"📉 Executing open_short (${position_size:,.2f})...", "yellow")
                         else:
-                            n.chunk_kill(token, max_usd_order_size, slippage)
-                        cprint("✅ Position closed successfully!", "white", "on_green")
-                        # Log short open
-                            try:
-                                import sys
-                                from pathlib import Path
-                                parent_dir = Path(__file__).parent.parent
+                            fn = n.market_sell
+                            cprint(f"📉 Executing market_sell (${position_size:,.2f})...", "yellow")
+
+                        # Build kwargs dynamically depending on function signature
+                        params = inspect.signature(fn).parameters
+                        kwargs = {}
+                        if "leverage" in params:
+                            kwargs["leverage"] = LEVERAGE
+                        if "account" in params:
+                            kwargs["account"] = self.account
+                        if "slippage" in params:
+                            kwargs["slippage"] = slippage
+
+                        # Safe function call
+                        fn(token, position_size, **kwargs)
+
+                        cprint("✅ Short position opened successfully!", "white", "on_green")
+                        
+                        # Log short position open
+                        try:
+                            import sys
+                            from pathlib import Path
+                            parent_dir = Path(__file__).parent.parent
+                            if str(parent_dir) not in sys.path:
                                 sys.path.insert(0, str(parent_dir))
-                                from trading_app import log_position_open
-                                
-                                log_position_open(token, "SHORT", position_size)
-                            except Exception:
-                                pass
-                                
+                            from trading_app import log_position_open
+                            
+                            log_position_open(token, "SHORT", position_size)
+                        except Exception:
+                            pass
+
                     except Exception as e:
-                        cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
+                        cprint(f"❌ Error opening short position: {str(e)}", "white", "on_red")
 
-                elif action == "NOTHING":
-                    cprint("⏸️  DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
-                    cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
-
-                else:
-                    cprint("✅ BUY signal - KEEPING POSITION", "white", "on_green")
-                    cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
+            elif action == "NOTHING":
+                cprint("⏸️  DO NOTHING signal with no position", "white", "on_blue")
+                cprint("⏭️  Staying out of market", "cyan")
 
             else:
-                # ============= CASE: NO POSITION =============
-                if action == "SELL":
-                    if LONG_ONLY:
-                        cprint("⏭️  SELL signal but NO POSITION to close", "white", "on_blue")
-                        cprint("📊 LONG ONLY mode: Can't open short, doing nothing", "cyan")
-                    else:
-                        account_balance = get_account_balance(self.account)
-                        position_size = calculate_position_size(account_balance)
+                # BUY signal with no position
+                cprint("📈 BUY signal with no position", "white", "on_green")
 
-                        cprint("📉 SELL signal with no position - OPENING SHORT", "white", "on_red")
-                        cprint(f"⚡ {EXCHANGE} mode: Opening ${position_size:,.2f} short position", "yellow")
-
-                        try:
-                            # Dynamically detect which function to use
-                            if hasattr(n, "open_short"):
-                                fn = n.open_short
-                                cprint(f"📉 Executing open_short (${position_size:,.2f})...", "yellow")
-                            else:
-                                fn = n.market_sell
-                                cprint(f"📉 Executing market_sell (${position_size:,.2f})...", "yellow")
-
-                            # Build kwargs dynamically depending on function signature
-                            params = inspect.signature(fn).parameters
-                            kwargs = {}
-                            if "leverage" in params:
-                                kwargs["leverage"] = LEVERAGE
-                            if "account" in params:
-                                kwargs["account"] = self.account
-                            if "slippage" in params:
-                                kwargs["slippage"] = slippage
-
-                            # Safe function call
-                            fn(token, position_size, **kwargs)
-
-                            cprint("✅ Short position opened successfully!", "white", "on_green")
-
-                        except Exception as e:
-                            cprint(f"❌ Error opening short position: {str(e)}", "white", "on_red")
-
-                elif action == "NOTHING":
-                    cprint("⏸️  DO NOTHING signal with no position", "white", "on_blue")
-                    cprint("⏭️  Staying out of market", "cyan")
-
+                if USE_PORTFOLIO_ALLOCATION:
+                    cprint("📊 Portfolio allocation will handle entry", "white", "on_cyan")
                 else:
-                    cprint("📈 BUY signal with no position", "white", "on_green")
+                    account_balance = get_account_balance(self.account)
+                    position_size = calculate_position_size(account_balance)
 
-                    if USE_PORTFOLIO_ALLOCATION:
-                        cprint("📊 Portfolio allocation will handle entry", "white", "on_cyan")
-                    else:
-                        account_balance = get_account_balance(self.account)
-                        position_size = calculate_position_size(account_balance)
+                    cprint("💰 Opening position at MAX_POSITION_PERCENTAGE", "white", "on_green")
 
-                        cprint("💰 Opening position at MAX_POSITION_PERCENTAGE", "white", "on_green")
+                    try:
+                        if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                            if EXCHANGE == "HYPERLIQUID":
+                                success = n.ai_entry(token, position_size, leverage=LEVERAGE, account=self.account)
+                            else:
+                                success = n.ai_entry(token, position_size, leverage=LEVERAGE)
+                        else:
+                            success = n.ai_entry(token, position_size)
 
-                        try:
-                            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                        if success:
+                            cprint("✅ Position opened successfully!", "white", "on_green")
+                            time.sleep(2)
+
+                            # Verify position
+                            try:
                                 if EXCHANGE == "HYPERLIQUID":
-                                    success = n.ai_entry(token, position_size, leverage=LEVERAGE, account=self.account)
+                                    raw_pos_data = n.get_position(token, self.account)
                                 else:
-                                    success = n.ai_entry(token, position_size, leverage=LEVERAGE)
-                            else:
-                                success = n.ai_entry(token, position_size)
+                                    raw_pos_data = n.get_position(token)
 
-                            if success:
-                                cprint("✅ Position opened successfully!", "white", "on_green")
-                            else:
-                                cprint("❌ Position not opened (check logs above)", "white", "on_red")
+                                _, im_in_pos, pos_size, _, _, _, _ = raw_pos_data
 
-                        except Exception as e:
-                            cprint(f"❌ Error opening position: {str(e)}", "white", "on_red")
-
-
-                    if USE_PORTFOLIO_ALLOCATION:
-                        cprint("📊 Portfolio allocation will handle entry", "white", "on_cyan")
-                    else:
-                        account_balance = get_account_balance(self.account)
-                        position_size = calculate_position_size(account_balance)
-
-                        cprint("💰 Opening position at MAX_POSITION_PERCENTAGE", "white", "on_green")
-                        try:
-                            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-                                if EXCHANGE == "HYPERLIQUID":
-                                    success = n.ai_entry(token, position_size, leverage=LEVERAGE, account=self.account)
+                                if im_in_pos and pos_size != 0:
+                                    cprint(f"📊 Confirmed: Position Active (Size: {pos_size})", "green", attrs=["bold"])
+                                    
+                                    # Log position open
+                                    try:
+                                        import sys
+                                        from pathlib import Path
+                                        parent_dir = Path(__file__).parent.parent
+                                        if str(parent_dir) not in sys.path:
+                                            sys.path.insert(0, str(parent_dir))
+                                        from trading_app import log_position_open
+                                        
+                                        notional_value = float(position_size) * LEVERAGE
+                                        log_position_open(token, "LONG", notional_value)
+                                    except Exception:
+                                        pass
                                 else:
-                                    success = n.ai_entry(token, position_size, leverage=LEVERAGE)
-                            else:
-                                success = n.ai_entry(token, position_size)
+                                    cprint("⚠️  Warning: Position verification failed - no position found!", "yellow")
 
-                            if success:
-                                cprint("✅ Position opened successfully!", "white", "on_green")
-                                time.sleep(2)
+                            except Exception as e:
+                                cprint(f"⚠️  Verification check error: {e}", "yellow")
 
-                                try:
-                                    if EXCHANGE == "HYPERLIQUID":
-                                        raw_pos_data = n.get_position(token, self.account, print_debug=False)
-                                    else:
-                                        raw_pos_data = n.get_position(token, print_debug=False)
+                        else:
+                            cprint("❌ Position not opened (check errors above)", "white", "on_red")
+                            
+                    except Exception as e:
+                        cprint(f"❌ Error opening position: {str(e)}", "white", "on_red")
 
-                                    _, im_in_pos, pos_size, _, _, _, _ = raw_pos_data
-
-                                    if im_in_pos and pos_size != 0:
-                                        cprint(f"📊 Confirmed: Position Active (Size: {pos_size})", "green", attrs=["bold"])
-                                    else:
-                                        cprint("⚠️  Warning: Position verification failed - no position found!", "yellow")
-
-                                except Exception as e:
-                                    cprint(f"⚠️  Verification check error: {e}", "yellow")
-
-                            else:
-                                cprint("❌ Position not opened (check errors above)", "white", "on_red")
-                        except Exception as e:
-                            cprint(f"❌ Error opening position: {str(e)}", "white", "on_red")
+                        
     def show_final_portfolio_report(self):
         """Display final portfolio status - NO LOOPS, just a snapshot"""
         cprint("\n" + "=" * 60, "cyan")
