@@ -991,8 +991,8 @@ Return ONLY valid JSON with the following structure:
             )
             return None
 
-    def allocate_portfolio(self):
-        """Get AI-recommended portfolio allocation"""
+def allocate_portfolio(self):
+        """Get AI-recommended portfolio allocation (exchange-aware)"""
         try:
             cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
 
@@ -1023,37 +1023,51 @@ Return ONLY valid JSON with the following structure:
             # Token set depends on exchange type
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 available_tokens = SYMBOLS
+                cash_example = '"USDC": 1.0'
+                token_format = "symbols (e.g., ETH, BTC)"
             else:
                 available_tokens = MONITORED_TOKENS
+                cash_example = f'"{USDC_ADDRESS}": 1.0'
+                token_format = "token contract addresses"
 
-            # --- AI prompt for allocation ---
+            # --- AI prompt for allocation (exchange-aware) ---
             allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
 
 Given:
-- Total portfolio size: ${account_balance}
-- Maximum position size: ${max_position_size} ({MAX_POSITION_PERCENTAGE}% of total)
-- Minimum cash (USDC) buffer: {CASH_PERCENTAGE}%
+- Total portfolio size: ${account_balance:.2f} USD
+- Maximum position per token: ${max_position_size:.2f} ({MAX_POSITION_PERCENTAGE}%)
+- Minimum cash buffer: {CASH_PERCENTAGE}%
 - Available tokens: {available_tokens}
-- USDC Address: {USDC_ADDRESS}
+- Cash reserve identifier: "{CASH_TOKEN}"
 
-Provide a portfolio allocation that:
-1. Never exceeds max position size per token
-2. Maintains minimum cash buffer
-3. Returns allocation as a JSON object with token addresses as keys and USD amounts as values
-4. Uses exact USDC address: {USDC_ADDRESS} for cash allocation
+BUY Recommendations:
+{buy_recommendations[['token', 'confidence']].to_string()}
 
-Example format:
+Allocate the portfolio efficiently:
+1. Only allocate to tokens with BUY recommendations
+2. Higher confidence = larger allocation
+3. Never exceed ${max_position_size:.2f} per token
+4. Keep {CASH_PERCENTAGE}% in "{CASH_TOKEN}" as cash buffer
+5. Return JSON with {token_format} as keys, USD amounts as values
+
+Example output:
 {{
-    "token_address": amount_in_usd,
-    "{USDC_ADDRESS}": remaining_cash_amount
-}}"""
+    "ETH": 4.5,
+    "BTC": 3.5,
+    {cash_example}
+}}
+
+Return ONLY the JSON object. No explanation or markdown."""
 
             # --- Compose user context ---
             user_content = f"""
-Total Portfolio Size: ${account_balance:,.2f} USD
-Trading Recommendations (BUY signals only):
+Total Portfolio: ${account_balance:,.2f} USD
+Max Position: ${max_position_size:,.2f} per token
+
+BUY Signals:
 {buy_recommendations.to_string()}
-"""
+
+Provide allocation JSON now."""
 
             # --- Call AI model ---
             response = self.chat_with_ai(allocation_prompt, user_content)
@@ -1065,56 +1079,46 @@ Trading Recommendations (BUY signals only):
             # --- Safely parse JSON ---
             allocations = extract_json_from_text(response)
             if not allocations:
-                cprint("❌ Error parsing allocation JSON: No JSON object found in the response", "red")
+                cprint("❌ Error parsing allocation JSON", "red")
                 cprint(f"   Raw response: {response}", "yellow")
                 return None
 
-            # --- Normalize keys if AI returned string literal 'USDC_ADDRESS' ---
-            if "USDC_ADDRESS" in allocations and USDC_ADDRESS not in allocations:
-                amount = allocations.pop("USDC_ADDRESS")
-                allocations[USDC_ADDRESS] = amount
+            # --- Normalize cash key ---
+            if "USDC_ADDRESS" in allocations and CASH_TOKEN not in allocations:
+                allocations[CASH_TOKEN] = allocations.pop("USDC_ADDRESS")
 
             # --- Validate and normalize allocations ---
-            valid_allocations = {k: float(v) for k, v in allocations.items()
-                                if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()}
-            total_margin = sum(valid_allocations.values())
-            target_margin = account_balance * (MAX_POSITION_PERCENTAGE / 100)
-        
-            # --- Scale allocations to use 90% of equity ---
-            if total_margin > 0:
-                scale_factor = target_margin / total_margin
-                for k in valid_allocations.keys():
+            valid_allocations = {}
+            for k, v in allocations.items():
+                try:
+                    amount = float(v)
+                    if amount > 0:
+                        valid_allocations[k] = amount
+                except (ValueError, TypeError):
+                    cprint(f"⚠️ Skipping invalid allocation: {k} = {v}", "yellow")
+
+            total_allocated = sum(valid_allocations.values())
+            
+            # --- Scale to match account balance ---
+            if total_allocated > 0 and abs(total_allocated - account_balance) > 1:
+                scale_factor = account_balance / total_allocated
+                cprint(f"⚙️ Scaling allocations by {scale_factor:.2f}x", "yellow")
+                for k in valid_allocations:
                     valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
-        
-            # --- Enforce minimum trade size (≥ $12 notional) ---
-            min_margin = 12 / LEVERAGE
-            adjusted = False
-            for k, v in valid_allocations.items():
-                if k == USDC_ADDRESS:
-                    continue  # skip cash buffer
-                if v < min_margin:
-                    cprint(f"⚠️ Raising {k} from ${v:.2f} to minimum ${min_margin:.2f}", "yellow")
-                    valid_allocations[k] = round(min_margin, 2)
-                    adjusted = True
-        
-            # --- Rebalance if any raises occurred ---
-            if adjusted:
-                total_margin = sum(v for k, v in valid_allocations.items() if k != USDC_ADDRESS)
-                scale_factor = target_margin / total_margin
-                for k in valid_allocations.keys():
-                    if k != USDC_ADDRESS:
-                        valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
-        
+
             allocations = valid_allocations
 
-            # --- Pretty print allocation ---
+            # --- Print allocation summary ---
             cprint("\n📊 AI Portfolio Allocation:", "green", attrs=["bold"])
+            trade_count = 0
             for token, amount in allocations.items():
-                token_display = "USDC (Cash)" if token == USDC_ADDRESS else token
-                try:
-                    cprint(f"   • {token_display}: ${float(amount):,.2f}", "green")
-                except (ValueError, TypeError):
-                    cprint(f"   • {token_display}: {amount} (Invalid Amount)", "red")
+                if token == CASH_TOKEN or token in EXCLUDED_TOKENS:
+                    cprint(f"   • {token}: ${float(amount):,.2f} (cash reserve)", "white")
+                else:
+                    cprint(f"   • {token}: ${float(amount):,.2f}", "green")
+                    trade_count += 1
+            
+            cprint(f"\n📈 {trade_count} tokens allocated for trading", "cyan", attrs=["bold"])
 
             return allocations
 
