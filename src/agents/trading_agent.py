@@ -1403,6 +1403,7 @@ Trading Recommendations (BUY signals only):
 
     def run_trading_cycle(self, strategy_signals=None):
         """Enhanced trading cycle with position management"""
+        add_console_log("🤖 Starting trading cycle", "success")
         try:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cprint(f"\n{'=' * 80}", "cyan")
@@ -1464,6 +1465,14 @@ Trading Recommendations (BUY signals only):
             summary_df = self.recommendations_df[["token", "action", "confidence"]].copy()
             print(summary_df.to_string(index=False))
 
+            if hasattr(self, 'recommendations_df') and len(self.recommendations_df) > 0:
+            buy = len(self.recommendations_df[self.recommendations_df["action"] == "BUY"])
+            sell = len(self.recommendations_df[self.recommendations_df["action"] == "SELL"])
+            hold = len(self.recommendations_df[self.recommendations_df["action"] == "NOTHING"])
+
+            add_console_log(f"Signals: {buy} BUY, {sell} SELL, {hold} HOLD", "trade")
+
+
             # STEP 7: HANDLE EXITS & ENTRIES
             self.handle_exits()
             buy_recommendations = self.recommendations_df[self.recommendations_df["action"] == "BUY"]
@@ -1489,7 +1498,7 @@ Trading Recommendations (BUY signals only):
 
             cprint(f"\n{'=' * 80}", "cyan")
             cprint("✅ TRADING CYCLE COMPLETE", "white", "on_green", attrs=["bold"])
-            add_console_log("Trading cycle complete", "success")
+            add_console_log("✅ Trading cycle complete", "success")
             cprint(f"{'=' * 80}\n", "cyan")
 
             # --- Display Account Balance and Invested Totals ---
