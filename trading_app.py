@@ -388,37 +388,53 @@ def log_position_open(symbol, side, size_usd):
     except Exception as e:
         print(f"⚠️ Error logging position open: {e}")
 
+# ============================================================================
+# CONSOLE LOGGING SUPPORT (enhanced for live updates)
+# ============================================================================
+
+# In-memory cache of recent console logs for instant visibility during agent_running/agent_executing
+console_log_cache = []
+console_log_lock = Lock()
 
 def add_console_log(message, level="info"):
     """
-    Add a log message to console with level support
-    Args:
-        message (str): Log message text
-        level (str): Log level - "info", "success", "error", "warning", "trade"
+    Add a log message to console and in-memory cache with thread safety
+    Ensures logs are visible immediately during agent_running and agent_executing
     """
+    global console_log_cache
+
+    entry = {
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "message": str(message),
+        "level": level
+    }
+
     try:
+        # --- Thread-safe write to in-memory cache ---
+        with console_log_lock:
+            console_log_cache.append(entry)
+            console_log_cache = console_log_cache[-200:]  # keep last 200 for memory
+
+        # --- Persist to file for durability ---
         if CONSOLE_FILE.exists():
             with open(CONSOLE_FILE, 'r') as f:
-                logs = json.load(f)
+                content = f.read().strip()
+                logs = json.loads(content) if content else []
         else:
             logs = []
-        
-        logs.append({
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message),
-            "level": level
-        })
-        
-        logs = logs[-50:]  # Keep last 50 logs
-        
+
+        logs.append(entry)
+        logs = logs[-500:]  # keep last 500 logs
+
         with open(CONSOLE_FILE, 'w') as f:
             json.dump(logs, f, indent=2)
-            
-        # Also print to console
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-        
+
+        # --- Print and flush to stdout (for Docker / console visibility) ---
+        print(f"[{entry['timestamp']}] {entry['message']}", flush=True)
+
     except Exception as e:
-        print(f"⚠️ Error saving console log: {e}")
+        print(f"⚠️ Error saving console log: {e}", flush=True)
+
 
 
 def get_console_logs():
@@ -714,9 +730,21 @@ def get_history():
 
 @app.route('/api/console')
 def get_console():
-    """Return full console logs to the Agent Dashboard (no throttling)."""
-    logs = get_console_logs()
-    return jsonify(logs[-500:])  # Return the last 500 log entries
+    """Return full console logs, including in-memory cache for live updates."""
+    try:
+        with console_log_lock:
+            cached = list(console_log_cache)
+        if CONSOLE_FILE.exists():
+            with open(CONSOLE_FILE, 'r') as f:
+                content = f.read().strip()
+                file_logs = json.loads(content) if content else []
+        else:
+            file_logs = []
+        merged = (file_logs + cached)[-500:]
+        return jsonify(merged)
+    except Exception as e:
+        print(f"⚠️ Error reading console logs: {e}", flush=True)
+        return jsonify([])
 
 
 @app.route('/api/start', methods=['POST'])
