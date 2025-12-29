@@ -965,7 +965,6 @@ Return ONLY valid JSON with the following structure:
                 )
 
                 add_console_log(f" 🎯 AI Analysis Complete for {token[:4]}!", "success")
-                add_console_log(f" Reasoning for {token[:4]}:\n{reasoning}", "info")
 
                 return response
 
