@@ -10,6 +10,7 @@ import sys
 import json
 import time
 import threading
+from threading import Lock  # ADD THIS LINE
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request
@@ -56,6 +57,8 @@ agent_running = False  # Always start stopped - never auto-start
 stop_agent_flag = False
 shutdown_in_progress = False  # Shutdown Flag
 agent_executing = False  # Agent Trade Cycle Active Flag - True when actively analyzing, False when waiting
+
+agent_lock = Lock()  # Protects all agent control flags
 
 # Symbols list (for trading agent reference)
 SYMBOLS = [
@@ -470,13 +473,73 @@ def save_agent_state(state):
     except Exception as e:
         print(f"⚠️ Error saving agent state: {e}")
 
+def get_account_balance(account=None):
+    """Get account balance in USD based on exchange type"""
+    try:
+        if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+            if EXCHANGE == "ASTER":
+                balance_dict = n.get_account_balance()
+                balance = balance_dict.get('available', 0) 
+                cprint(f"💰 {EXCHANGE} Available Balance: ${balance:,.2f} USD", "cyan")
+                
+            else:  # HYPERLIQUID
+                address = os.getenv("ACCOUNT_ADDRESS")
+                if not address:
+                    if account is None:
+                        account = n._get_account_from_env()
+                    address = account.address
+
+                try:
+                    if hasattr(n, 'get_available_balance'):
+                        balance = n.get_available_balance(address)
+                        cprint(f"💰 {EXCHANGE} Available (Free) USDC: ${balance}", "cyan")
+                        
+                        total_val = n.get_account_value(address)
+                        cprint(f"   (Total Equity including positions: ${total_val})", "white")
+                    else:
+                        cprint("⚠️ Using Total Equity (Warning: Checks locked collateral)", "yellow")
+                        balance = n.get_account_value(address)
+                        
+                except Exception as e:
+                    cprint(f"❌ CRITICAL: Error getting balance: {e}", "red")
+                    # Don't return 0, raise exception
+                    raise RuntimeError(f"Failed to get HyperLiquid balance: {e}")
+
+            return float(balance)
+            
+        else:
+            # SOLANA
+            balance = n.get_token_balance_usd(USDC_ADDRESS)
+            return balance
+            
+    except Exception as e:
+        cprint(f"❌ CRITICAL: Error getting account balance: {e}", "red")
+        cprint("🛑 Cannot trade with unknown balance - stopping cycle", "red")
+        import traceback
+        traceback.print_exc()
+        
+        # Log to dashboard console
+        try:
+            import sys
+            from pathlib import Path
+            parent_dir = Path(__file__).parent.parent
+            if str(parent_dir) not in sys.path:
+                sys.path.insert(0, str(parent_dir))
+            from trading_app import add_console_log
+            add_console_log(f"❌ Cannot get account balance: {e}", "error")
+        except:
+            pass
+        
+        # RAISE exception instead of returning 0
+        raise RuntimeError(f"Failed to get account balance: {e}")
+
 # ============================================================================
 # TRADING AGENT CONTROL
 # ============================================================================
 
 def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
-    global agent_running, stop_agent_flag
+    global agent_running, stop_agent_flag, agent_executing
     
     add_console_log("Trading agent started", "success")
     
@@ -484,9 +547,9 @@ def run_trading_agent():
         try:
             add_console_log(f"Running analysis cycle", "info")
             
-            # ADD THIS - Set execution flag
-            global agent_executing
-            agent_executing = True
+            # SET EXECUTION FLAG WITH LOCK
+            with agent_lock:
+                agent_executing = True
             
             # Capture start time
             cycle_start = time.time()
@@ -522,8 +585,9 @@ def run_trading_agent():
             
             add_console_log(f"Cycle complete ({cycle_duration}s)", "success")
 
-            # Clear execution flag
-            agent_executing = False
+            # CLEAR EXECUTION FLAG WITH LOCK
+            with agent_lock:
+                agent_executing = False
             
             # Get recommendations summary
             if hasattr(agent, 'recommendations_df') and len(agent.recommendations_df) > 0:
@@ -546,6 +610,10 @@ def run_trading_agent():
                 time.sleep(60)
             
         except Exception as e:
+            # RESET EXECUTING FLAG ON ERROR WITH LOCK
+            with agent_lock:
+                agent_executing = False
+                
             error_msg = f"Cycle error: {str(e)}"
             add_console_log(error_msg, "error")
             import traceback
@@ -553,7 +621,11 @@ def run_trading_agent():
             add_console_log("Retrying in 60 sec", "warning")
             time.sleep(60)
     
-    agent_running = False
+    # FINAL CLEANUP WITH LOCK
+    with agent_lock:
+        agent_running = False
+        agent_executing = False
+        
     add_console_log("Agent stopped", "info")
 
 # ============================================================================
@@ -643,25 +715,27 @@ def start_agent():
     """Start the trading agent"""
     global agent_thread, agent_running, stop_agent_flag
     
-    if agent_running:
-        return jsonify({
-            "status": "already_running",
-            "message": "Agent is already running"
-        })
-    
-    agent_running = True
-    stop_agent_flag = False
-    
-    # Save state with timestamp
-    state = load_agent_state()
-    state["running"] = True
-    state["last_started"] = datetime.now().isoformat()
-    state["total_cycles"] = state.get("total_cycles", 0) + 1
-    save_agent_state(state)
-    
-    # Start agent thread
-    agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
-    agent_thread.start()
+    # USE LOCK FOR ENTIRE START OPERATION
+    with agent_lock:
+        if agent_running:
+            return jsonify({
+                "status": "already_running",
+                "message": "Agent is already running"
+            })
+        
+        agent_running = True
+        stop_agent_flag = False
+        
+        # Save state with timestamp
+        state = load_agent_state()
+        state["running"] = True
+        state["last_started"] = datetime.now().isoformat()
+        state["total_cycles"] = state.get("total_cycles", 0) + 1
+        save_agent_state(state)
+        
+        # Start agent thread
+        agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
+        agent_thread.start()
     
     add_console_log("Trading agent started via dashboard", "success")
     
@@ -669,26 +743,28 @@ def start_agent():
         "status": "started",
         "message": "Trading agent started successfully"
     })
-
+    
 @app.route('/api/stop', methods=['POST'])
 def stop_agent():
     """Stop the trading agent"""
     global agent_running, stop_agent_flag
     
-    if not agent_running:
-        return jsonify({
-            "status": "not_running",
-            "message": "Agent is not running"
-        })
-    
-    stop_agent_flag = True
-    agent_running = False
-    
-    # Save state with timestamp
-    state = load_agent_state()
-    state["running"] = False
-    state["last_stopped"] = datetime.now().isoformat()
-    save_agent_state(state)
+    # USE LOCK FOR ENTIRE STOP OPERATION
+    with agent_lock:
+        if not agent_running:
+            return jsonify({
+                "status": "not_running",
+                "message": "Agent is not running"
+            })
+        
+        stop_agent_flag = True
+        agent_running = False
+        
+        # Save state with timestamp
+        state = load_agent_state()
+        state["running"] = False
+        state["last_stopped"] = datetime.now().isoformat()
+        save_agent_state(state)
     
     add_console_log("Trading agent stop requested via dashboard", "info")
     
@@ -696,20 +772,28 @@ def stop_agent():
         "status": "stopped",
         "message": "Trading agent stopped successfully"
     })
-
-@app.route('/api/status')
-def get_status():
-    """Get current agent and exchange status"""
-    state = load_agent_state()
     
-    return jsonify({
-        "running": agent_running,
-        "connected": EXCHANGE_CONNECTED,
-        "last_started": state.get("last_started"),
-        "last_stopped": state.get("last_stopped"),
-        "total_cycles": state.get("total_cycles", 0),
-        "timestamp": datetime.now().isoformat()
-    })
+    
+@app.route('/api/agent-status')
+def get_agent_status():
+    """Lightweight status check - returns if agent is actively executing"""
+    with agent_lock:
+        # Also check if thread is actually alive
+        thread_alive = agent_thread is not None and agent_thread.is_alive()
+        
+        # If thread died but flags say running, fix the flags
+        if agent_running and not thread_alive:
+            add_console_log("⚠️ Agent thread died unexpectedly - resetting flags", "warning")
+            global agent_running, agent_executing
+            agent_running = False
+            agent_executing = False
+        
+        return jsonify({
+            "running": agent_running,
+            "executing": agent_executing,
+            "thread_alive": thread_alive,
+            "timestamp": datetime.now().isoformat()
+        })
 
 
 @app.route('/health')
@@ -720,6 +804,22 @@ def health_check():
         "timestamp": datetime.now().isoformat()
     }), 200
 
+@app.route('/api/debug-status')
+def debug_status():
+    """Detailed debugging status endpoint"""
+    with agent_lock:
+        return jsonify({
+            "agent_running": agent_running,
+            "agent_executing": agent_executing,
+            "stop_agent_flag": stop_agent_flag,
+            "shutdown_in_progress": shutdown_in_progress,
+            "thread_exists": agent_thread is not None,
+            "thread_alive": agent_thread.is_alive() if agent_thread else False,
+            "thread_daemon": agent_thread.daemon if agent_thread else None,
+            "exchange_connected": EXCHANGE_CONNECTED,
+            "exchange_type": EXCHANGE,
+            "timestamp": datetime.now().isoformat()
+        })
  
 # ============================================================================
 # GRACEFUL SHUTDOWN HANDLER
