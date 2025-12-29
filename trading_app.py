@@ -629,12 +629,7 @@ def run_trading_agent():
             from src.agents.trading_agent import SLEEP_BETWEEN_RUNS_MINUTES as minutes
             # Wait 60 minutes before next cycle
             add_console_log("✅ Finished Trading cycle...", "info")
-
-            next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
-            cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
-            log_and_print(f"🕒 Next trading cycle starts in {SLEEP_BETWEEN_RUNS_MINUTES} minutes", "info")
-            time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
-
+            add_console_log("Next cycle starts in minutes", "info")
             
             # Wait with stop flag checking every minute
             for i in range(60):
@@ -793,7 +788,7 @@ def start_agent():
         agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
         agent_thread.start()
     
-    add_console_log("Trading agent started", "success")
+    add_console_log("Trading agent started via dashboard", "success")
     
     return jsonify({
         "status": "started",
@@ -822,7 +817,7 @@ def stop_agent():
         state["last_stopped"] = datetime.now().isoformat()
         save_agent_state(state)
     
-    add_console_log("Trading agent stopped", "info")
+    add_console_log("Trading agent stop requested via dashboard", "info")
     
     return jsonify({
         "status": "stopped",
