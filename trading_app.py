@@ -715,25 +715,24 @@ def get_history():
 def get_console():
     """
     Return console logs for the Agent Dashboard.
-    During agent_execution=True (Smart Dashboard Updates),
-    show full logs for analysis and trade execution phases,
-    but throttle everything else.
+    During Smart Dashboard Updates, show full logs for analysis/trade execution.
     """
-    global console_log, agent_running
+    global agent_running, agent_executing
 
-    # Default: show all logs if agent not executing
-    if not agent_running:
-        return jsonify(console_log[-200:])  # last 200 logs, for safety
-
-    # --- Smart Dashboard Updates active ---
+    # Load the logs properly
+    logs = get_console_logs()
+    # If the agent is not executing, just return the latest 200
+    if not agent_executing:
+        return jsonify(logs[-200:])
+    # --- Smart Dashboard Updates active (agent executing) ---
     allowed_levels = {"important", "error", "warning", "analyze", "trade"}
     visible_logs = [
-        entry
-        for entry in console_log[-300:]  # look at last 300 entries
+        entry for entry in logs[-300:]
         if entry.get("level", "info") in allowed_levels
     ]
 
     return jsonify(visible_logs)
+
 
 
 
