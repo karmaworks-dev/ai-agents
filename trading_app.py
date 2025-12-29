@@ -398,8 +398,8 @@ console_log_lock = Lock()
 
 def add_console_log(message, level="info"):
     """
-    Add a log message to console and in-memory cache with thread safety.
-    Ensures logs are visible immediately during agent_running and agent_executing.
+    Add a log message to console and in-memory cache with thread safety
+    Ensures logs are visible immediately during agent_running and agent_executing
     """
     global console_log_cache
 
@@ -410,12 +410,12 @@ def add_console_log(message, level="info"):
     }
 
     try:
-        # --- Thread-safe cache update ---
+        # --- Thread-safe write to in-memory cache ---
         with console_log_lock:
             console_log_cache.append(entry)
-            console_log_cache = console_log_cache[-500:]  # keep last 500
+            console_log_cache = console_log_cache[-200:]  # keep last 200 for memory
 
-        # --- Persist to file ---
+        # --- Persist to file for durability ---
         if CONSOLE_FILE.exists():
             with open(CONSOLE_FILE, 'r') as f:
                 content = f.read().strip()
@@ -424,29 +424,16 @@ def add_console_log(message, level="info"):
             logs = []
 
         logs.append(entry)
-        logs = logs[-500:]
+        logs = logs[-500:]  # keep last 500 logs
+
         with open(CONSOLE_FILE, 'w') as f:
             json.dump(logs, f, indent=2)
 
-        # --- Always print and flush for terminal visibility ---
+        # --- Print and flush to stdout (for Docker / console visibility) ---
         print(f"[{entry['timestamp']}] {entry['message']}", flush=True)
 
     except Exception as e:
         print(f"⚠️ Error saving console log: {e}", flush=True)
-
-# Redirect all print() output to also log to dashboard
-import builtins
-_original_print = builtins.print
-
-def mirrored_print(*args, **kwargs):
-    message = " ".join(str(a) for a in args)
-    _original_print(*args, **kwargs)
-    try:
-        add_console_log(message, "info")
-    except Exception:
-        pass
-
-builtins.print = mirrored_print
 
 
 
@@ -743,7 +730,7 @@ def get_history():
 
 @app.route('/api/console')
 def get_console():
-    """Return console logs, including in-memory cache for live updates."""
+    """Return full console logs, including in-memory cache for live updates."""
     try:
         with console_log_lock:
             cached = list(console_log_cache)
@@ -758,7 +745,6 @@ def get_console():
     except Exception as e:
         print(f"⚠️ Error reading console logs: {e}", flush=True)
         return jsonify([])
-
 
 
 @app.route('/api/start', methods=['POST'])
