@@ -1128,7 +1128,8 @@ Provide allocation JSON now."""
             traceback.print_exc()
             return None
 
-    def execute_allocations(self, allocation_dict):
+
+   def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position"""
         try:
             print("\n🚀 Executing portfolio allocations...")
