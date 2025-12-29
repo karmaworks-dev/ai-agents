@@ -1062,7 +1062,6 @@ Total Portfolio Size: ${account_balance:,.2f} USD
 Trading Recommendations (BUY signals only):
 {buy_recommendations.to_string()}
 """
-"""
 
             # --- Call AI model ---
             response = self.chat_with_ai(allocation_prompt, user_content)
