@@ -165,7 +165,7 @@ LEVERAGE = 20
 # Stop Loss & Take Profit
 STOP_LOSS_PERCENTAGE = 2.0      # SL @ -2% PnL
 TAKE_PROFIT_PERCENTAGE = 5.0    # TP @ +5% PnL 
-PNL_CHECK_INTERVAL = 5          # check PnL every 5 minutes          
+PNL_CHECK_INTERVAL = 2          # check PnL every 2 minutes          
 
 # Legacy settings 
 usd_size = 25                  
@@ -173,13 +173,13 @@ max_usd_order_size = 3
 CASH_PERCENTAGE = 10
 
 # 📊 MARKET DATA COLLECTION
-DAYSBACK_4_DATA = 2              
-DATA_TIMEFRAME = '30m'            
+DAYSBACK_4_DATA = 1              # 1 day datafeed
+DATA_TIMEFRAME = '5m'            # 5m timeframe
 SAVE_OHLCV_DATA = False          
 
 # ⚡ TRADING EXECUTION SETTINGS
 slippage = 199                   
-SLEEP_BETWEEN_RUNS_MINUTES = 60  
+SLEEP_BETWEEN_RUNS_MINUTES = 5  
 
 # 🎯 TOKEN CONFIGURATION
 address = "ACCOUNT_ADDRESS" 
