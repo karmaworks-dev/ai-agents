@@ -137,8 +137,8 @@ LONG_ONLY = False
 
 # 🤖 SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'gemini' 
-AI_MODEL_NAME = 'gemini-2.5-flash'  # Fast Gemini 2.5 model
-AI_TEMPERATURE = 0.7   
+AI_MODEL_NAME = 'gemini-2.5-pro'  # Fast Gemini 2.5 model
+AI_TEMPERATURE = 0.6   
 AI_MAX_TOKENS = 3000   
 
 # 💰 POSITION SIZING & RISK MANAGEMENT
