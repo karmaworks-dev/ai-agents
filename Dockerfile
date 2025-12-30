@@ -1,14 +1,14 @@
-# Use the version used during development
+# Use the Python version specified in the source documentation
 FROM python:3.10-slim
 
 # Install system dependencies
+# Added llvm and build-essential for numerical/trading library support
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     libpq-dev \
-    # Added for some numerical/trading library support
     llvm \
- && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
