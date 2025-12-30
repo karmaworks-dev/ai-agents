@@ -61,6 +61,7 @@ def extract_json_from_text(text):
 
 from src.models import model_factory
 from src.agents.swarm_agent import SwarmAgent 
+from src.nice_funcs_hyperliquid import n
 from src.data.ohlcv_collector import collect_all_tokens
 
 load_dotenv()
@@ -194,11 +195,11 @@ if EXCHANGE == "ASTER":
         
 elif EXCHANGE == "HYPERLIQUID":
     try:
-        import nice_funcs_hyperliquid as n
+        from src import nice_funcs_hyperliquid as n
         cprint("🦈 Exchange: HyperLiquid (Perpetuals) - Using local nice_funcs_hyperliquid.py", "cyan", attrs=['bold'])
     except ImportError:
         try:
-            from src import nice_funcs_hyperliquid as n
+            import nice_funcs_hyperliquid as n
             cprint("🦈 Exchange: HyperLiquid (Perpetuals) - Using src module", "cyan", attrs=['bold'])
         except ImportError:
             cprint("❌ Error: nice_funcs_hyperliquid.py not found!", "red")
