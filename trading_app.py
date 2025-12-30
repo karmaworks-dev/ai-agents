@@ -13,11 +13,12 @@ import threading
 import queue
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for
 from dotenv import load_dotenv
 from flask_cors import CORS
 import signal
 import atexit
+from functools import wraps
 
 # ============================================================================
 # SETUP & CONFIGURATION
@@ -41,6 +42,18 @@ app = Flask(
     static_folder=str(DASHBOARD_DIR / "static"),
     static_url_path="/static"
 )
+
+# Configure session (uses Flask's built-in server-side sessions)
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'kw-trader-secret-key-2025')
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+# Login credentials (hardcoded as requested)
+VALID_CREDENTIALS = {
+    'username': 'KW-Trader',
+    'email': 'karmaworks.asia@gmail.com',
+    'password': 'Trader152535'
+}
 
 # Enable CORS
 CORS(app)
@@ -175,7 +188,8 @@ def log_writer_worker():
 
 def add_console_log(message, level="info"):
     """
-    Add log message to async queue (non-blocking).
+    Add a log message to console with level support
+
     Args:
         message (str): Log message text
         level (str): Log level - "info", "success", "error", "warning", "trade"
@@ -187,18 +201,17 @@ def add_console_log(message, level="info"):
             "level": level
         }
 
-        # Add to queue (non-blocking, drop if full)
-        try:
-            log_queue.put_nowait(log_entry)
-        except queue.Full:
-            print(f"⚠️ Log queue full, dropping message: {message}")
+        logs = logs[-50:]  # Keep last 50 logs
+
+        with open(CONSOLE_FILE, 'w') as f:
+            json.dump(logs, f, indent=2)
 
         # Always print to console immediately
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
     except Exception as e:
-        print(f"⚠️ Logging error: {e}")
-            
+        print(f"⚠️ Error saving console log: {e}")
+
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (Favoring src module)
 # ============================================================================
@@ -651,16 +664,84 @@ def run_trading_agent():
     add_console_log("Agent stopped", "info")
 
 # ============================================================================
+# AUTHENTICATION
+# ============================================================================
+
+def login_required(f):
+    """Decorator to require login for routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            # For API routes, return JSON error instead of redirect
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Authentication required', 'redirect': '/login'}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ============================================================================
 # FLASK ROUTES
 # ============================================================================
 
+@app.route('/login', methods=['GET'])
+def login():
+    """Serve the login page"""
+    # If already logged in, redirect to dashboard
+    if session.get('logged_in'):
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    """Handle login requests"""
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+
+    # Check credentials (username OR email, and password)
+    if ((username == VALID_CREDENTIALS['username'] or
+         username == VALID_CREDENTIALS['email']) and
+        password == VALID_CREDENTIALS['password']):
+
+        session['logged_in'] = True
+        session['username'] = VALID_CREDENTIALS['username']
+        add_console_log(f"User {VALID_CREDENTIALS['username']} logged in", "success")
+
+        return jsonify({
+            'success': True,
+            'message': 'Login successful'
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'Invalid username or password'
+        }), 401
+
+
+@app.route('/api/logout', methods=['POST'])
+def api_logout():
+    """Handle logout requests"""
+    username = session.get('username', 'Unknown')
+    session.clear()
+    add_console_log(f"User {username} logged out", "info")
+
+    return jsonify({
+        'success': True,
+        'message': 'Logged out successfully'
+    })
+
+
 @app.route('/')
+@login_required
 def index():
     """Serve the main dashboard"""
     return render_template('index.html')
 
 
 @app.route('/api/data')
+@login_required
 def get_data():
     """API endpoint for account data and positions"""
     try:
@@ -687,6 +768,7 @@ def get_data():
 
 
 @app.route('/api/trades')
+@login_required
 def get_trades():
     """API endpoint for recent trades"""
     try:
@@ -698,6 +780,7 @@ def get_trades():
 
 
 @app.route('/api/history')
+@login_required
 def get_history():
     """API endpoint for balance history"""
     try:
@@ -712,6 +795,7 @@ def get_history():
 
 
 @app.route('/api/console')
+@login_required
 def get_console():
     """API endpoint for console logs"""
     try:
@@ -723,6 +807,7 @@ def get_console():
 
 
 @app.route('/api/start', methods=['POST'])
+@login_required
 def start_agent():
     """Start the trading agent"""
     global agent_thread, agent_running, stop_agent_flag
@@ -757,6 +842,7 @@ def start_agent():
 
 
 @app.route('/api/stop', methods=['POST'])
+@login_required
 def stop_agent():
     """Stop the trading agent"""
     global agent_running, stop_agent_flag
@@ -786,6 +872,7 @@ def stop_agent():
 
 
 @app.route('/api/status')
+@login_required
 def get_status():
     """Get current agent and exchange status"""
     state = load_agent_state()
@@ -800,6 +887,7 @@ def get_status():
 
 
 @app.route('/api/agent-status')
+@login_required
 def get_agent_status():
     """Return current agent status and metadata."""
     try:
@@ -819,6 +907,24 @@ def get_agent_status():
             "agent_running": False,
             "error": str(e)
         }), 500
+
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    """Get or update settings"""
+    if request.method == 'GET':
+        # Return current settings
+        return jsonify({
+            'exchange': EXCHANGE,
+            'symbols': SYMBOLS,
+            'ai_model': os.getenv('AI_MODEL', 'claude-3-haiku-20240307')
+        })
+    else:
+        # Update settings (save to localStorage on frontend for now)
+        data = request.get_json()
+        add_console_log(f"Settings updated: Exchange={data.get('exchange')}, Model={data.get('ai_model')}", "info")
+        return jsonify({'success': True, 'message': 'Settings saved'})
 
 
 @app.route('/health')

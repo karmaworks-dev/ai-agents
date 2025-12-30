@@ -1,31 +1,42 @@
 // Trading Dashboard Frontend - Updated for Agent
 
 let updateInterval;
+let portfolioChart = null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Dashboard initializing...');
-    
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+        document.getElementById('theme-icon').textContent = '🌙';
+    }
+
     // Load saved timezone preference
     const savedTimezone = localStorage.getItem('preferred_timezone') || 'local';
     const timezoneSelect = document.getElementById('timezone-select');
     if (timezoneSelect) {
         timezoneSelect.value = savedTimezone;
     }
-    
+
+    // Load settings
+    loadSettings();
+
     // Load agent state first
     loadAgentState();
-    
+
     // Initial updates
     updateDashboard();
     updateConsole();
     updateTimestamp(); // Initialize timestamp with saved timezone
-    
+
     // Set up intervals
     updateInterval = setInterval(updateDashboard, 10000); // Changed to 10000 (10s)
     setInterval(updateConsole, 10000);
     setInterval(updateTimestamp, 1000); // Update timestamp every second
-    
+
     console.log('✅ Dashboard ready - auto-refresh enabled');
 });
 
@@ -51,9 +62,16 @@ async function updateDashboard() {
         
         // Agent is idle - do full update
         const response = await fetch('/api/data');
-        
+
         if (!response.ok) {
             console.error('API returned error:', response.status);
+
+            // Handle authentication errors
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+
             setStatusOffline();
             return;
         }
@@ -75,7 +93,10 @@ async function updateDashboard() {
         const tradesResponse = await fetch('/api/trades');
         const trades = await tradesResponse.json();
         updateTrades(trades);
-        
+
+        // Update portfolio chart
+        updatePortfolioChart();
+
     } catch (error) {
         console.error('❌ Dashboard update error:', error);
         setStatusOffline();
@@ -120,14 +141,30 @@ function updateTimezone() {
     const select = document.getElementById('timezone-select');
     const selectedZone = select.value;
     localStorage.setItem('preferred_timezone', selectedZone);
-    updateTimestamp(); // Refresh timestamp
+    updateTimestamp(); // Refresh timestamp immediately
     updateConsole(); // Refresh console with new timezone
 }
 
-// Update timestamp
+// Update timestamp with timezone support
 function updateTimestamp() {
     const now = new Date();
-    const timeString = now.toLocaleTimeString('en-US', { hour12: false });
+    const timezone = localStorage.getItem('preferred_timezone') || 'local';
+
+    let timeString;
+    if (timezone === 'local') {
+        timeString = now.toLocaleTimeString('en-US', { hour12: false });
+    } else if (timezone === 'UTC') {
+        timeString = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            timeZone: 'UTC'
+        });
+    } else {
+        timeString = now.toLocaleTimeString('en-US', {
+            hour12: false,
+            timeZone: timezone
+        });
+    }
+
     document.getElementById('timestamp').textContent = timeString;
 }
 
@@ -443,5 +480,164 @@ function setStatusOffline() {
 window.addEventListener('beforeunload', () => {
     clearInterval(updateInterval);
 });
+
+// ============================================================================
+// THEME TOGGLE
+// ============================================================================
+
+function toggleTheme() {
+    const body = document.body;
+    const themeIcon = document.getElementById('theme-icon');
+
+    if (body.classList.contains('light-mode')) {
+        // Switch to dark mode
+        body.classList.remove('light-mode');
+        themeIcon.textContent = '☀️';
+        localStorage.setItem('theme', 'dark');
+    } else {
+        // Switch to light mode
+        body.classList.add('light-mode');
+        themeIcon.textContent = '🌙';
+        localStorage.setItem('theme', 'light');
+    }
+}
+
+// ============================================================================
+// SETTINGS MODAL
+// ============================================================================
+
+function openSettings() {
+    document.getElementById('settings-modal').classList.add('show');
+    loadSettings();
+}
+
+function closeSettings(event) {
+    if (!event || event.target.id === 'settings-modal' || event.target.classList.contains('modal-close')) {
+        document.getElementById('settings-modal').classList.remove('show');
+    }
+}
+
+function loadSettings() {
+    // Load settings from localStorage
+    const exchange = localStorage.getItem('exchange') || 'HYPERLIQUID';
+    const tokens = localStorage.getItem('tokens') || 'ETH, BTC, SOL, AAVE, LINK, LTC, FARTCOIN';
+    const model = localStorage.getItem('ai_model') || 'claude-3-haiku-20240307';
+
+    document.getElementById('exchange-select').value = exchange;
+    document.getElementById('tokens-input').value = tokens;
+    document.getElementById('model-select').value = model;
+}
+
+async function saveSettings() {
+    const exchange = document.getElementById('exchange-select').value;
+    const tokens = document.getElementById('tokens-input').value;
+    const model = document.getElementById('model-select').value;
+
+    // Save to localStorage
+    localStorage.setItem('exchange', exchange);
+    localStorage.setItem('tokens', tokens);
+    localStorage.setItem('ai_model', model);
+
+    // Send to backend API
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                exchange: exchange,
+                tokens: tokens.split(',').map(t => t.trim()),
+                ai_model: model
+            })
+        });
+
+        const data = await response.json();
+        addConsoleMessage('Settings saved successfully', 'success');
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        addConsoleMessage('Settings saved locally (backend update failed)', 'warning');
+    }
+
+    closeSettings();
+}
+
+// ============================================================================
+// LOGOUT
+// ============================================================================
+
+async function logout() {
+    try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        // Redirect anyway
+        window.location.href = '/login';
+    }
+}
+
+// ============================================================================
+// PORTFOLIO CHART
+// ============================================================================
+
+async function updatePortfolioChart() {
+    try {
+        const response = await fetch('/api/history');
+        const history = await response.json();
+
+        if (!history || history.length === 0) {
+            document.getElementById('portfolio-chart').innerHTML = 'No portfolio data yet';
+            return;
+        }
+
+        // Calculate portfolio change
+        const startBalance = history[0].balance;
+        const currentBalance = history[history.length - 1].balance;
+        const change = ((currentBalance - startBalance) / startBalance) * 100;
+
+        const badge = document.getElementById('portfolio-change');
+        badge.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+        badge.className = `badge ${change >= 0 ? 'positive' : 'negative'}`;
+
+        // Render simple ASCII chart
+        renderPortfolioChart(history);
+
+    } catch (error) {
+        console.error('Error updating portfolio chart:', error);
+    }
+}
+
+function renderPortfolioChart(history) {
+    const container = document.getElementById('portfolio-chart');
+
+    // Simple sparkline visualization
+    const values = history.map(h => h.balance);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const range = max - min;
+
+    if (range === 0) {
+        container.innerHTML = `Balance: $${values[0].toFixed(2)} (No change)`;
+        return;
+    }
+
+    // Create simple bars
+    const bars = values.map(val => {
+        const height = ((val - min) / range) * 100;
+        return `<div style="height: ${height}%; background: var(--accent-green); width: ${100 / values.length}%; display: inline-block;"></div>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div style="width: 100%; height: 100%; display: flex; align-items: flex-end; gap: 2px;">
+            ${bars}
+        </div>
+    `;
+}
 
 console.log('✅ Dashboard ready');

@@ -14,23 +14,28 @@
         <!-- Header with Controls -->
         <header class="header">
             <div class="header-left">
-                <h1> AI Trading Dashboard</h1>
+                <h1>🌙 AI Trading Dashboard</h1>
                 <span class="agent-badge" id="agent-badge">Ready</span>
             </div>
             <div class="header-right">
                 <span class="timestamp" id="timestamp">--:--:--</span>
-                    <select id="timezone-select" class="timezone-select" onchange="updateTimezone()">
-                        <option value="local">Local Time</option>
-                        <option value="UTC">UTC</option>
-                        <option value="America/New_York">(GMT-5)New York</option>
-                        <option value="Europe/London">(GMT+1) London</option>
-                        <option value="Europe/Berlin">(GMT+2) Berlin</option>
-                        <option value="Asia/Dubai">(GMT+4) Dubai</option>
-                        <option value="Asia/Singapore">(GMT+8) Singapore</option>
-                        <option value="Asia/Tokyo">(GMT+9) Tokyo</option>  
-                    </select>
+                <select id="timezone-select" class="timezone-select" onchange="updateTimezone()">
+                    <option value="local">Local Time</option>
+                    <option value="UTC">UTC</option>
+                    <option value="America/New_York">(GMT-5) New York</option>
+                    <option value="Europe/London">(GMT+1) London</option>
+                    <option value="Europe/Berlin">(GMT+2) Berlin</option>
+                    <option value="Asia/Dubai">(GMT+4) Dubai</option>
+                    <option value="Asia/Singapore">(GMT+8) Singapore</option>
+                    <option value="Asia/Tokyo">(GMT+9) Tokyo</option>
+                </select>
+                <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+                    <span id="theme-icon">☀️</span>
+                </button>
+                <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
                 <button class="btn btn-run" id="run-btn" onclick="runAgent()">▶ RUN</button>
                 <button class="btn btn-stop" id="stop-btn" onclick="stopAgent()" style="display:none;">⏹ STOP</button>
+                <button class="btn btn-logout" onclick="logout()">Logout</button>
             </div>
         </header>
 
@@ -73,10 +78,14 @@
                     </div>
                 </div>
 
-                <!-- Recent Trades -->
+                <!-- Portfolio Evolution -->
                 <div class="card">
                     <div class="card-header">
-                        <h2>Recent Trades</h2>
+                        <h2>Portfolio</h2>
+                        <span class="badge" id="portfolio-change">0%</span>
+                    </div>
+                    <div class="portfolio-chart" id="portfolio-chart">
+                        <!-- Chart will be rendered here -->
                     </div>
                     <div class="trades-container" id="trades">
                         <div class="empty-state">No recent trades</div>
@@ -102,6 +111,47 @@
         <footer class="footer">
             <p>Auto-updates every 10 seconds • 60-minute trading cycles • HyperLiquid Exchange</p>
         </footer>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal" onclick="closeSettings(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label for="exchange-select">Exchange</label>
+                    <select id="exchange-select" class="setting-input">
+                        <option value="HYPERLIQUID">HyperLiquid</option>
+                        <option value="ASTER">Aster</option>
+                        <option value="SOLANA">Solana</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <label for="tokens-input">Monitored Tokens (comma-separated)</label>
+                    <textarea id="tokens-input" class="setting-input" rows="3" placeholder="ETH, BTC, SOL, AAVE"></textarea>
+                </div>
+
+                <div class="setting-group">
+                    <label for="model-select">AI Model</label>
+                    <select id="model-select" class="setting-input">
+                        <option value="claude-3-haiku-20240307">Claude 3 Haiku (Fast)</option>
+                        <option value="claude-3-sonnet-20240229">Claude 3 Sonnet (Balanced)</option>
+                        <option value="claude-3-opus-20240229">Claude 3 Opus (Powerful)</option>
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="deepseek-chat">DeepSeek</option>
+                        <option value="groq">Groq</option>
+                    </select>
+                </div>
+
+                <div class="setting-group">
+                    <button class="btn btn-run" style="width: 100%;" onclick="saveSettings()">Save Settings</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/app.js"></script>
