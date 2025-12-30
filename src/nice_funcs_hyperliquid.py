@@ -36,6 +36,15 @@ load_dotenv()
 import warnings
 warnings.filterwarnings('ignore')
 
+# Import logging from trading_app (module-level, not inside functions)
+try:
+    from trading_app import add_console_log
+except ImportError:
+    # Fallback if trading_app not available (standalone usage)
+    def add_console_log(message, level="info"):
+        """Fallback logger when trading_app not available"""
+        print(f"[{level.upper()}] {message}")
+
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
@@ -357,13 +366,6 @@ def kill_switch(symbol, account):
     print(colored(f'✅ Kill switch executed - all {symbol} subpositions closed', 'green'))
     # Log to Dashboard
     try:
-        import sys
-        from pathlib import Path
-        parent_dir = Path(__file__).parent
-        if str(parent_dir) not in sys.path:
-            sys.path.insert(0, str(parent_dir))
-        from trading_app import add_console_log
-        
         add_console_log(f"\n✔️ Closed {symbol} position", "trade")
     except Exception:
         pass
@@ -472,13 +474,6 @@ def market_buy(symbol, usd_size, account, slippage=None):
     print(colored(f'✅ Market buy executed: {pos_size} {symbol} at ${buy_price}', 'green'))
     # Log to dashboard
     try:
-        import sys
-        from pathlib import Path
-        parent_dir = Path(__file__).parent
-        if str(parent_dir) not in sys.path:
-            sys.path.insert(0, str(parent_dir))
-        from trading_app import add_console_log
-        
         position_value = pos_size * buy_price
         add_console_log(f"📈 LONG {symbol} for ${position_value:.2f}", "trade")
     except Exception:
@@ -525,13 +520,6 @@ def market_sell(symbol, usd_size, account, slippage=None):
 
     print(colored(f'✅ Market sell executed: {pos_size} {symbol} at ${sell_price}', 'red'))
     try:
-        import sys
-        from pathlib import Path
-        parent_dir = Path(__file__).parent
-        if str(parent_dir) not in sys.path:
-            sys.path.insert(0, str(parent_dir))
-        from trading_app import add_console_log
-        
         position_value = pos_size * sell_price
         add_console_log(f"📉 SHORT {symbol} for ${position_value:.2f}", "trade")
     except Exception:
@@ -1170,13 +1158,6 @@ def close_complete_position(symbol, account, slippage=0.01):
         
         # Log to dashboard
         try:
-            import sys
-            from pathlib import Path
-            parent_dir = Path(__file__).parent
-            if str(parent_dir) not in sys.path:
-                sys.path.insert(0, str(parent_dir))
-            from trading_app import add_console_log
-            
             side = "LONG" if is_long else "SHORT"
             add_console_log(f"✔️ Closed complete {side} {symbol}", "trade")
         except Exception:
