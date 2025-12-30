@@ -78,7 +78,7 @@ try:
     import nice_funcs_hyperliquid as n
     from eth_account import Account
 
-    # ============================================================================
+# ============================================================================
 # LOGGING UTILITIES
 # ============================================================================
 
@@ -106,6 +106,42 @@ try:
 
         except Exception as e:
             print(f"⚠️ Logging error: {e}")
+
+    # ============================================================================
+# AGENT STATE UTILITIES
+# ============================================================================
+
+def load_agent_state():
+    """Load agent state from persistent storage"""
+    try:
+        if AGENT_STATE_FILE.exists():
+            with open(AGENT_STATE_FILE, 'r') as f:
+                return json.load(f)
+        # Default if file missing
+        return {
+            "running": False,
+            "last_started": None,
+            "last_stopped": None,
+            "total_cycles": 0
+        }
+    except Exception as e:
+        add_console_log(f"⚠️ Error loading agent state: {e}", "error")
+        return {
+            "running": False,
+            "last_started": None,
+            "last_stopped": None,
+            "total_cycles": 0
+        }
+
+
+    def save_agent_state(state):
+        """Save agent state to persistent storage"""
+        try:
+            with open(AGENT_STATE_FILE, 'w') as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            add_console_log(f"⚠️ Error saving agent state: {e}", "error")
+
 
 
     def _get_account():
