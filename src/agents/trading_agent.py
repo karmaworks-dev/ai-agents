@@ -1450,24 +1450,31 @@ Trading Recommendations (BUY signals only):
             cprint(f"\n{'=' * 80}", "cyan")
             cprint(f"🔄 TRADING CYCLE START: {current_time}", "white", "on_green", attrs=["bold"])
             cprint(f"{'=' * 80}", "cyan")
+            
+            add_console_log(f"🔄 TRADING CYCLE STARTED", "info")
 
             # STEP 1: FETCH ALL OPEN POSITIONS
+            add_console_log("Fetching open positions...", "info")  
             open_positions = self.fetch_all_open_positions()
+            add_console_log(f"Found {len(open_positions)} open position(s)", "info")
 
             # STEP 2: COLLECT MARKET DATA
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 tokens_to_trade = SYMBOLS
             else:
                 tokens_to_trade = MONITORED_TOKENS
-
-            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
+                
             add_console_log("📊 Collecting market data for analysis...", "info")
+            
+            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
             market_data = collect_all_tokens(
                 tokens=tokens_to_trade,
                 days_back=DAYSBACK_4_DATA,
                 timeframe=DATA_TIMEFRAME,
                 exchange=EXCHANGE,
             )
+            
+            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
 
             # STEP 3: AI ANALYZES OPEN POSITIONS
             close_decisions = {}
@@ -1490,6 +1497,7 @@ Trading Recommendations (BUY signals only):
             cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
             for token, data in market_data.items():
                 cprint(f"\n🤖 Analyzing {token}...", "white", "on_green")
+                
                 add_console_log(f"🤖 Analyzing {token}...", "info")
 
                 if strategy_signals and token in strategy_signals:
@@ -1514,7 +1522,7 @@ Trading Recommendations (BUY signals only):
                 allocation = self.allocate_portfolio()
                 if allocation:
                     cprint("\n💼 Executing portfolio allocations...", "white", "on_blue")
-                    add_console_log("\n💼 Executing portfolio allocations...", "info")
+                    add_console_log("💼 Executing portfolio allocations...", "info")
                     self.execute_allocations(allocation)
 
             # STEP 8: FINAL PORTFOLIO REPORT
