@@ -219,11 +219,11 @@ if EXCHANGE == "ASTER":
         
 elif EXCHANGE == "HYPERLIQUID":
     try:
-        import nice_funcs_hyperliquid as n
+        from src import nice_funcs_hyperliquid as n
         cprint("🦈 Exchange: HyperLiquid (Perpetuals) - Using local nice_funcs_hyperliquid.py", "cyan", attrs=['bold'])
     except ImportError:
         try:
-            from src import nice_funcs_hyperliquid as n
+            import nice_funcs_hyperliquid as n
             cprint("🦈 Exchange: HyperLiquid (Perpetuals) - Using src module", "cyan", attrs=['bold'])
         except ImportError:
             cprint("❌ Error: nice_funcs_hyperliquid.py not found! Ensure it is in the same folder.", "red")
@@ -426,26 +426,30 @@ def calculate_position_size(account_balance):
 
 class TradingAgent:
     def __init__(self):
-        # Initialize Account object with auto-cleaning for keys
-        self.account = None
-        if EXCHANGE == "HYPERLIQUID":
-            cprint("🔑 Initializing Hyperliquid Account...", "cyan")
-            try:
-                raw_key = (
-                   os.getenv("HYPER_LIQUID_KEY", "")
-                   or os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
-                )
-                clean_key = raw_key.strip().replace('"', '').replace("'", "")
-                self.account = Account.from_key(clean_key)
-
-                self.address = os.getenv("ACCOUNT_ADDRESS")
-                if not self.address:
-                    self.address = self.account.address
-
-                cprint(f"✅ Account loaded successfully! Address: {self.address}", "green")
-            except Exception as e:
-                cprint(f"❌ Error loading key: {e}", "red")
-                sys.exit(1)
+    self.account = None
+    if EXCHANGE == "HYPERLIQUID":
+        cprint("🔑 Initializing Hyperliquid Account...", "cyan")
+        try:
+            # Prioritize the standardized key name used by the dashboard
+            raw_key = (
+                os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") 
+                or os.getenv("HYPER_LIQUID_KEY", "")
+            )
+            
+            clean_key = raw_key.strip().replace('"', '').replace("'", "")
+            if not clean_key:
+                raise ValueError("Private Key not found in .env")
+                
+            self.account = Account.from_key(clean_key)
+            self.address = os.getenv("ACCOUNT_ADDRESS")
+            
+            if not self.address:
+                self.address = self.account.address
+                
+            cprint(f"✅ Account loaded successfully! Address: {self.address}", "green")
+        except Exception as e:
+            cprint(f"❌ Error loading key: {e}", "red")
+            sys.exit(1)
 
         # Check if using swarm mode or single model
         if USE_SWARM_MODE:
