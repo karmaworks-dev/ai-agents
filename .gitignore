@@ -1,6 +1,16 @@
 # Gitmarco-b's .gitignore
 # Keep your secrets safe! 🔒
 
+# ============================================================================
+# PRODUCTION: Agent Data (logs, trades, history) - DO NOT COMMIT
+# ============================================================================
+agent_data/
+**/agent_data/
+*.log
+*.log.*
+*.backup
+*.old
+
 # API Keys and Sensitive Data
 src/data/codetotext
 src/data/million_agent
@@ -64,7 +74,6 @@ ENV/
 Thumbs.db
 
 # Logs and Databases
-*.log
 *.sqlite
 *.db
 
@@ -215,4 +224,3 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
-
