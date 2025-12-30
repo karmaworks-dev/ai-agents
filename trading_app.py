@@ -42,9 +42,10 @@ app = Flask(
     static_url_path="/static"
 )
 
-# Configure session
+# Configure session (uses Flask's built-in server-side sessions)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'kw-trader-secret-key-2025')
-app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 # Login credentials (hardcoded as requested)
 VALID_CREDENTIALS = {
@@ -87,7 +88,12 @@ SYMBOLS = [
 # ============================================================================
 
 def add_console_log(message, level="info"):
-    """Write log message to console_logs.json and print to stdout."""
+    """
+    Add a log message to console with level support
+    Args:
+        message (str): Log message text
+        level (str): Log level - "info", "success", "error", "warning", "trade"
+    """
     try:
         if CONSOLE_FILE.exists():
             with open(CONSOLE_FILE, 'r') as f:
@@ -101,7 +107,8 @@ def add_console_log(message, level="info"):
             "level": level
         })
 
-        logs = logs[-200:]  # Keep last 200 entries
+        logs = logs[-50:]  # Keep last 50 logs
+
         with open(CONSOLE_FILE, 'w') as f:
             json.dump(logs, f, indent=2)
 
@@ -109,8 +116,8 @@ def add_console_log(message, level="info"):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
     except Exception as e:
-        print(f"⚠️ Logging error: {e}")
-            
+        print(f"⚠️ Error saving console log: {e}")
+
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (Favoring src module)
 # ============================================================================
@@ -145,80 +152,6 @@ except ImportError:
 
         EXCHANGE_CONNECTED = True
         print("✅ HyperLiquid functions loaded from root nice_funcs_hyperliquid")
-
-    except ImportError as e:
-        print(f"⚠️ Warning: Could not import HyperLiquid functions: {e}")
-        print("⚠️ Dashboard will run in DEMO mode with simulated data")
-        
-        class DummyAccount:
-            address = "0x0000000000000000000000000000000000000000"
-            
-        def _get_account():
-            return DummyAccount()
-        n = None
-    
-
-
-
-    # ============================================================================
-    # AGENT STATE UTILITIES
-    # ============================================================================
-
-    def load_agent_state():
-        """Load agent state from persistent storage"""
-        try:
-            if AGENT_STATE_FILE.exists():
-                with open(AGENT_STATE_FILE, 'r') as f:
-                    return json.load(f)
-             # Default if file missing
-            return {
-                "running": False,
-                "last_started": None,
-                "last_stopped": None,
-                "total_cycles": 0
-            }
-        except Exception as e:
-            add_console_log(f"⚠️ Error loading agent state: {e}", "error")
-            return {
-                "running": False,
-                "last_started": None,
-                "last_stopped": None,
-                "total_cycles": 0
-            }
-
-
-    def save_agent_state(state):
-        """Save agent state to persistent storage"""
-        try:
-            with open(AGENT_STATE_FILE, 'w') as f:
-                json.dump(state, f, indent=2)
-        except Exception as e:
-            add_console_log(f"⚠️ Error saving agent state: {e}", "error")
-
-
-
-    def _get_account():
-        """Get HyperLiquid account from environment"""
-        key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
-        clean_key = key.strip().replace('"', '').replace("'", "")
-        return Account.from_key(clean_key)
-
-    EXCHANGE_CONNECTED = True
-    print("✅ HyperLiquid functions loaded from nice_funcs_hyperliquid")
-
-except ImportError:
-    try:
-        # Fallback: Try importing from src module
-        from src import nice_funcs_hyperliquid as n
-        from eth_account import Account
-
-        def _get_account():
-            key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
-            clean_key = key.strip().replace('"', '').replace("'", "")
-            return Account.from_key(clean_key)
-
-        EXCHANGE_CONNECTED = True
-        print("✅ HyperLiquid functions loaded from src.nice_funcs_hyperliquid")
 
     except ImportError as e:
         print(f"⚠️ Warning: Could not import HyperLiquid functions: {e}")
@@ -489,38 +422,6 @@ def log_position_open(symbol, side, size_usd):
         print(f"⚠️ Error logging position open: {e}")
 
 
-def add_console_log(message, level="info"):
-    """
-    Add a log message to console with level support
-    Args:
-        message (str): Log message text
-        level (str): Log level - "info", "success", "error", "warning", "trade"
-    """
-    try:
-        if CONSOLE_FILE.exists():
-            with open(CONSOLE_FILE, 'r') as f:
-                logs = json.load(f)
-        else:
-            logs = []
-        
-        logs.append({
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message),
-            "level": level
-        })
-        
-        logs = logs[-50:]  # Keep last 50 logs
-        
-        with open(CONSOLE_FILE, 'w') as f:
-            json.dump(logs, f, indent=2)
-            
-        # Also print to console
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-        
-    except Exception as e:
-        print(f"⚠️ Error saving console log: {e}")
-
-
 def get_console_logs():
     """Get console logs"""
     try:
@@ -666,6 +567,9 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('logged_in'):
+            # For API routes, return JSON error instead of redirect
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Authentication required', 'redirect': '/login'}), 401
             return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated_function

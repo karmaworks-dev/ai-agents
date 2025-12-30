@@ -338,6 +338,18 @@ html, body {
     font-weight: 700;
 }
 
+.badge.positive {
+    background: rgba(0, 255, 136, 0.15);
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+}
+
+.badge.negative {
+    background: rgba(255, 71, 87, 0.15);
+    color: var(--accent-red);
+    border: 1px solid var(--accent-red);
+}
+
 /* Positions & Trades Container */
 .positions-container,
 .trades-container {

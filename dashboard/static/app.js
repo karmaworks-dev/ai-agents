@@ -62,9 +62,16 @@ async function updateDashboard() {
         
         // Agent is idle - do full update
         const response = await fetch('/api/data');
-        
+
         if (!response.ok) {
             console.error('API returned error:', response.status);
+
+            // Handle authentication errors
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+
             setStatusOffline();
             return;
         }
