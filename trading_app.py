@@ -68,15 +68,50 @@ SYMBOLS = [
 ]
 
 # ============================================================================
-# IMPORT TRADING FUNCTIONS (with fallback)
+# IMPORT TRADING FUNCTIONS (Favoring src module)
 # ============================================================================
-
 EXCHANGE_CONNECTED = False
-
 try:
-    # Try importing from local nice_funcs_hyperliquid
-    import nice_funcs_hyperliquid as n
+    # 1. Prioritize importing from the src module
+    from src import nice_funcs_hyperliquid as n
     from eth_account import Account
+
+    def _get_account():
+        """Standardized key lookup for dashboard and agent"""
+        key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
+        clean_key = key.strip().replace('"', '').replace("'", "")
+        if not clean_key:
+            raise ValueError("HYPER_LIQUID_ETH_PRIVATE_KEY missing in .env")
+        return Account.from_key(clean_key)
+
+    EXCHANGE_CONNECTED = True
+    print("✅ HyperLiquid functions loaded from src.nice_funcs_hyperliquid")
+
+except ImportError:
+    try:
+        # 2. Fallback: Try importing from root nice_funcs_hyperliquid
+        import nice_funcs_hyperliquid as n
+        from eth_account import Account
+
+        def _get_account():
+            key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
+            clean_key = key.strip().replace('"', '').replace("'", "")
+            return Account.from_key(clean_key)
+
+        EXCHANGE_CONNECTED = True
+        print("✅ HyperLiquid functions loaded from root nice_funcs_hyperliquid")
+
+    except ImportError as e:
+        print(f"⚠️ Warning: Could not import HyperLiquid functions: {e}")
+        print("⚠️ Dashboard will run in DEMO mode with simulated data")
+        
+        class DummyAccount:
+            address = "0x0000000000000000000000000000000000000000"
+            
+        def _get_account():
+            return DummyAccount()
+        n = None
+    
 
 # ============================================================================
 # LOGGING UTILITIES
