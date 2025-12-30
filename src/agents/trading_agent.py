@@ -24,12 +24,7 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import re
 
-# 🔧 Import dashboard logging helper from trading_app
-try:
-    from trading_app import add_console_log
-except Exception:
-    def add_console_log(message, level="info"):
-        print(f"[{level.upper()}] {message}")
+from trading_app import add_console_log
 
 
 def extract_json_from_text(text):
