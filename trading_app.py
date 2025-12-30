@@ -602,9 +602,6 @@ def run_trading_agent():
             else:
                 tokens = MONITORED_TOKENS
 
-            # Log analysis start
-            add_console_log(f"🤖 Analyzing {len(tokens)} tokens", "info")
-
             # Run the trading cycle
             agent.run_trading_cycle()
 

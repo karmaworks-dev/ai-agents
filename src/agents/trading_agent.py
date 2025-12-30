@@ -916,6 +916,12 @@ Return ONLY valid JSON with the following structure:
                 )
 
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
+
+                # Add short summary for dashboard
+                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
+                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
+                add_console_log(f"   → {summary}", "info")
+
                 return swarm_result
 
             # SINGLE MODEL MODE
@@ -973,6 +979,11 @@ Return ONLY valid JSON with the following structure:
                 )
 
                 add_console_log(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
+
+                # Add short summary for dashboard
+                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
+                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
+                add_console_log(f"   → {summary}", "info")
 
                 return response
 
