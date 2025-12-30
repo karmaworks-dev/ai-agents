@@ -994,21 +994,42 @@ Return ONLY valid JSON with the following structure:
             return None
 
     def allocate_portfolio(self):
-        """Get AI-recommended portfolio allocation"""
-        try:
-            cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
+       """Get AI-recommended portfolio allocation"""
+       try:
+           cprint("\n💰 Calculating optimal portfolio allocation...", "cyan")
 
-            # Filter only BUY recommendations
-            buy_recommendations = self.recommendations_df[
-                self.recommendations_df["action"] == "BUY"
-            ]
+           # Filter only BUY recommendations
+           buy_recommendations = self.recommendations_df[
+               self.recommendations_df["action"] == "BUY"
+           ]
 
-            if buy_recommendations.empty:
-                cprint("✅ No BUY recommendations. Skipping allocation.", "green")
-                return {}
+           if buy_recommendations.empty:
+               cprint("✅ No BUY recommendations. Skipping allocation.", "green")
+               return {}
 
-            # Get account balance (equity)
-            account_balance = get_account_balance(self.account)
+           # ===== ADD THIS VALIDATION BLOCK =====
+           # Filter to only valid tokens for this exchange
+           if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+               valid_tokens = SYMBOLS
+               buy_recommendations = buy_recommendations[
+                   buy_recommendations["token"].isin(valid_tokens)
+               ]
+               cprint(f"📋 Filtered to valid {EXCHANGE} symbols: {list(buy_recommendations['token'])}", "cyan")
+               add_console_log(f"Valid tokens for allocation: {list(buy_recommendations['token'])}", "info")
+           else:
+               valid_tokens = MONITORED_TOKENS
+               buy_recommendations = buy_recommendations[
+                   buy_recommendations["token"].isin(valid_tokens)
+               ]
+        
+           if buy_recommendations.empty:
+               cprint("⚠️ No BUY recommendations for valid exchange tokens", "yellow")
+               add_console_log("No valid tokens to allocate after filtering", "warning")
+               return {}
+           # ===== END VALIDATION BLOCK =====
+
+           # Get account balance (equity)
+           account_balance = get_account_balance(self.account)
             if account_balance <= 0:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return None
