@@ -425,7 +425,7 @@ def calculate_position_size(account_balance):
 # ============================================================================
 
 class TradingAgent:
-    def __init__(self):  # Ensure 'self' is here
+    def __init__(self):
         self.account = None
         if EXCHANGE == "HYPERLIQUID":
             cprint("🔑 Initializing Hyperliquid Account...", "cyan")
@@ -440,14 +440,14 @@ class TradingAgent:
                 # This is where your error is triggering
                 self.account = Account.from_key(clean_key) 
                 self.address = os.getenv("ACCOUNT_ADDRESS")
-            
-            if not self.address:
-                self.address = self.account.address
                 
-            cprint(f"✅ Account loaded successfully! Address: {self.address}", "green")
-        except Exception as e:
-            cprint(f"❌ Error loading key: {e}", "red")
-            sys.exit(1)
+                if not self.address:
+                    self.address = self.account.address
+                    
+                cprint(f"✅ Account loaded successfully! Address: {self.address}", "green")
+            except Exception as e:
+                cprint(f"❌ Error loading key: {e}", "red")
+                sys.exit(1)
 
         # Check if using swarm mode or single model
         if USE_SWARM_MODE:
