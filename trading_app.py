@@ -10,6 +10,7 @@ import sys
 import json
 import time
 import threading
+import queue
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request
@@ -58,6 +59,13 @@ agent_thread = None
 agent_running = False  # Always start stopped - never auto-start
 stop_agent_flag = False
 shutdown_in_progress = False
+stop_event = threading.Event()  # Event for clean shutdown signaling
+
+# Thread synchronization
+state_lock = threading.Lock()  # Lock for agent state variables
+log_queue = queue.Queue(maxsize=1000)  # Async logging queue
+log_writer_thread = None
+log_writer_running = False
 
 # Symbols list (for trading agent reference)
 SYMBOLS = [
@@ -74,26 +82,118 @@ SYMBOLS = [
 # LOGGING UTILITIES
 # ============================================================================
 
-def add_console_log(message, level="info"):
-    """Write log message to console_logs.json and print to stdout."""
-    try:
-        if CONSOLE_FILE.exists():
-            with open(CONSOLE_FILE, 'r') as f:
-                logs = json.load(f)
-        else:
-            logs = []
+def log_writer_worker():
+    """Background thread that batches log writes to avoid I/O bottleneck."""
+    global log_writer_running
 
-        logs.append({
+    log_buffer = []
+    last_write_time = time.time()
+    WRITE_INTERVAL = 2.0  # Write to disk every 2 seconds
+
+    # Persistent log directory
+    AGENT_DATA_DIR = DATA_DIR / "agent_data" / "logs"
+    AGENT_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    while log_writer_running:
+        try:
+            # Try to get logs from queue with timeout
+            try:
+                log_entry = log_queue.get(timeout=0.5)
+                log_buffer.append(log_entry)
+                log_queue.task_done()
+            except queue.Empty:
+                pass
+
+            # Write to disk if buffer has entries and interval elapsed
+            current_time = time.time()
+            if log_buffer and (current_time - last_write_time >= WRITE_INTERVAL):
+                # 1. Write to console_logs.json (last 200 for dashboard)
+                if CONSOLE_FILE.exists():
+                    try:
+                        with open(CONSOLE_FILE, 'r') as f:
+                            logs = json.load(f)
+                    except (json.JSONDecodeError, IOError):
+                        logs = []
+                else:
+                    logs = []
+
+                # Append buffered logs
+                logs.extend(log_buffer)
+
+                # Keep last 200 entries
+                logs = logs[-200:]
+
+                # Write to disk
+                with open(CONSOLE_FILE, 'w') as f:
+                    json.dump(logs, f, indent=2)
+
+                # 2. Append to persistent daily log file (never truncated)
+                date_str = datetime.now().strftime("%Y-%m-%d")
+                daily_log_file = AGENT_DATA_DIR / f"app_{date_str}.log"
+
+                with open(daily_log_file, 'a') as f:
+                    for entry in log_buffer:
+                        log_line = f"[{entry['timestamp']}] [{entry['level'].upper()}] {entry['message']}\n"
+                        f.write(log_line)
+
+                # Clear buffer and update timestamp
+                log_buffer.clear()
+                last_write_time = current_time
+
+        except Exception as e:
+            print(f"⚠️ Log writer error: {e}")
+            time.sleep(1)
+
+    # Final flush on shutdown
+    if log_buffer:
+        try:
+            # Write to console_logs.json
+            if CONSOLE_FILE.exists():
+                with open(CONSOLE_FILE, 'r') as f:
+                    logs = json.load(f)
+            else:
+                logs = []
+
+            logs.extend(log_buffer)
+            logs = logs[-200:]
+
+            with open(CONSOLE_FILE, 'w') as f:
+                json.dump(logs, f, indent=2)
+
+            # Write to daily log file
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            daily_log_file = AGENT_DATA_DIR / f"app_{date_str}.log"
+
+            with open(daily_log_file, 'a') as f:
+                for entry in log_buffer:
+                    log_line = f"[{entry['timestamp']}] [{entry['level'].upper()}] {entry['message']}\n"
+                    f.write(log_line)
+
+        except Exception as e:
+            print(f"⚠️ Final log flush error: {e}")
+
+
+def add_console_log(message, level="info"):
+    """
+    Add log message to async queue (non-blocking).
+    Args:
+        message (str): Log message text
+        level (str): Log level - "info", "success", "error", "warning", "trade"
+    """
+    try:
+        log_entry = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
             "message": str(message),
             "level": level
-        })
+        }
 
-        logs = logs[-200:]  # Keep last 200 entries
-        with open(CONSOLE_FILE, 'w') as f:
-            json.dump(logs, f, indent=2)
+        # Add to queue (non-blocking, drop if full)
+        try:
+            log_queue.put_nowait(log_entry)
+        except queue.Full:
+            print(f"⚠️ Log queue full, dropping message: {message}")
 
-        # Also print to console
+        # Always print to console immediately
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
 
     except Exception as e:
@@ -137,87 +237,12 @@ except ImportError:
     except ImportError as e:
         print(f"⚠️ Warning: Could not import HyperLiquid functions: {e}")
         print("⚠️ Dashboard will run in DEMO mode with simulated data")
-        
-        class DummyAccount:
-            address = "0x0000000000000000000000000000000000000000"
-            
-        def _get_account():
-            return DummyAccount()
-        n = None
-    
-
-
-
-    # ============================================================================
-    # AGENT STATE UTILITIES
-    # ============================================================================
-
-    def load_agent_state():
-        """Load agent state from persistent storage"""
-        try:
-            if AGENT_STATE_FILE.exists():
-                with open(AGENT_STATE_FILE, 'r') as f:
-                    return json.load(f)
-             # Default if file missing
-            return {
-                "running": False,
-                "last_started": None,
-                "last_stopped": None,
-                "total_cycles": 0
-            }
-        except Exception as e:
-            add_console_log(f"⚠️ Error loading agent state: {e}", "error")
-            return {
-                "running": False,
-                "last_started": None,
-                "last_stopped": None,
-                "total_cycles": 0
-            }
-
-
-    def save_agent_state(state):
-        """Save agent state to persistent storage"""
-        try:
-            with open(AGENT_STATE_FILE, 'w') as f:
-                json.dump(state, f, indent=2)
-        except Exception as e:
-            add_console_log(f"⚠️ Error saving agent state: {e}", "error")
-
-
-
-    def _get_account():
-        """Get HyperLiquid account from environment"""
-        key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
-        clean_key = key.strip().replace('"', '').replace("'", "")
-        return Account.from_key(clean_key)
-
-    EXCHANGE_CONNECTED = True
-    print("✅ HyperLiquid functions loaded from nice_funcs_hyperliquid")
-
-except ImportError:
-    try:
-        # Fallback: Try importing from src module
-        from src import nice_funcs_hyperliquid as n
-        from eth_account import Account
-
-        def _get_account():
-            key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "")
-            clean_key = key.strip().replace('"', '').replace("'", "")
-            return Account.from_key(clean_key)
-
-        EXCHANGE_CONNECTED = True
-        print("✅ HyperLiquid functions loaded from src.nice_funcs_hyperliquid")
-
-    except ImportError as e:
-        print(f"⚠️ Warning: Could not import HyperLiquid functions: {e}")
-        print("⚠️ Dashboard will run in DEMO mode with simulated data")
 
         class DummyAccount:
             address = "0x0000000000000000000000000000000000000000"
 
         def _get_account():
             return DummyAccount()
-
         n = None
 
 # ============================================================================
@@ -477,38 +502,6 @@ def log_position_open(symbol, side, size_usd):
         print(f"⚠️ Error logging position open: {e}")
 
 
-def add_console_log(message, level="info"):
-    """
-    Add a log message to console with level support
-    Args:
-        message (str): Log message text
-        level (str): Log level - "info", "success", "error", "warning", "trade"
-    """
-    try:
-        if CONSOLE_FILE.exists():
-            with open(CONSOLE_FILE, 'r') as f:
-                logs = json.load(f)
-        else:
-            logs = []
-        
-        logs.append({
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message),
-            "level": level
-        })
-        
-        logs = logs[-50:]  # Keep last 50 logs
-        
-        with open(CONSOLE_FILE, 'w') as f:
-            json.dump(logs, f, indent=2)
-            
-        # Also print to console
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
-        
-    except Exception as e:
-        print(f"⚠️ Error saving console log: {e}")
-
-
 def get_console_logs():
     """Get console logs"""
     try:
@@ -568,9 +561,9 @@ def save_agent_state(state):
 def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
     global agent_running, stop_agent_flag
-    
+
     add_console_log("AI Trading agent started", "success")
-    
+
     # Import trading agent at the top of the function
     try:
         from src.agents.trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
@@ -584,65 +577,77 @@ def run_trading_agent():
             sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
             from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
             trading_agent_module = "trading_agent (sys.path)"
-    
+
     add_console_log(f"Loaded trading_agent from: {trading_agent_module}", "info")
     add_console_log(f"Using exchange: {EXCHANGE}", "info")
-    
-    while agent_running and not stop_agent_flag:
+
+    # Convert minutes to seconds for sleep
+    sleep_seconds = SLEEP_BETWEEN_RUNS_MINUTES * 60
+
+    while True:
+        # Check stop condition with lock
+        with state_lock:
+            if not agent_running or stop_agent_flag:
+                break
+
         try:
             add_console_log(f"Running analysis cycle", "info")
-            
+
             # Capture start time
             cycle_start = time.time()
-            
+
             # Create agent instance
             agent = TradingAgent()
-            
+
             # Get tokens list based on exchange
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 tokens = SYMBOLS
             else:
                 tokens = MONITORED_TOKENS
-            
+
             # Log analysis start
             add_console_log(f"🤖 Analyzing {len(tokens)} tokens", "info")
-            
+
             # Run the trading cycle
             agent.run_trading_cycle()
-            
+
             # Calculate cycle duration
             cycle_duration = int(time.time() - cycle_start)
-            
+
             add_console_log(f"Cycle complete ({cycle_duration}s)", "success")
-            
+
             # Get recommendations summary
             if hasattr(agent, 'recommendations_df') and len(agent.recommendations_df) > 0:
                 buy_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'BUY'])
                 sell_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'SELL'])
                 nothing_count = len(agent.recommendations_df[agent.recommendations_df['action'] == 'NOTHING'])
-                
+
                 add_console_log(f"Signals: {buy_count} BUY, {sell_count} SELL, {nothing_count} HOLD", "trade")
 
             # Wait before next cycle
             add_console_log("✅ Finished trading cycle", "info")
             add_console_log(f"Next cycle starts in {SLEEP_BETWEEN_RUNS_MINUTES} minutes", "info")
-            
-            # Wait with stop flag checking every minute
-            for i in range(SLEEP_BETWEEN_RUNS_MINUTES):
-                if stop_agent_flag:
-                    add_console_log("Stop signal received", "info")
-                    break
-                time.sleep(60)
-            
+
+            # Use Event.wait() instead of blocking sleep for responsive shutdown
+            if stop_event.wait(timeout=sleep_seconds):
+                add_console_log("Stop signal received via event", "info")
+                break
+
         except Exception as e:
             error_msg = f"Cycle error: {str(e)}"
             add_console_log(error_msg, "error")
             import traceback
             traceback.print_exc()
             add_console_log("Retrying in 60 sec", "warning")
-            time.sleep(60)
-    
-    agent_running = False
+
+            # Wait with interruptible sleep
+            if stop_event.wait(timeout=60):
+                add_console_log("Stop signal received during error recovery", "info")
+                break
+
+    # Clean shutdown
+    with state_lock:
+        agent_running = False
     add_console_log("Agent stopped", "info")
 
 # ============================================================================
@@ -722,24 +727,26 @@ def start_agent():
     """Start the trading agent"""
     global agent_thread, agent_running, stop_agent_flag
 
-    if agent_running:
-        return jsonify({
-            "status": "already_running",
-            "message": "Agent is already running"
-        })
+    with state_lock:
+        if agent_running:
+            return jsonify({
+                "status": "already_running",
+                "message": "Agent is already running"
+            })
 
-    agent_running = True
-    stop_agent_flag = False
+        agent_running = True
+        stop_agent_flag = False
+        stop_event.clear()  # Clear the stop event
 
-    # Save state
-    state = load_agent_state()
-    state["running"] = True
-    state["last_started"] = datetime.now().isoformat()
-    state["total_cycles"] = state.get("total_cycles", 0) + 1
-    save_agent_state(state)
+        # Save state
+        state = load_agent_state()
+        state["running"] = True
+        state["last_started"] = datetime.now().isoformat()
+        state["total_cycles"] = state.get("total_cycles", 0) + 1
+        save_agent_state(state)
 
-    agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
-    agent_thread.start()
+        agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
+        agent_thread.start()
 
     add_console_log("Trading agent started via dashboard", "success")
 
@@ -754,19 +761,21 @@ def stop_agent():
     """Stop the trading agent"""
     global agent_running, stop_agent_flag
 
-    if not agent_running:
-        return jsonify({
-            "status": "not_running",
-            "message": "Agent is not running"
-        })
+    with state_lock:
+        if not agent_running:
+            return jsonify({
+                "status": "not_running",
+                "message": "Agent is not running"
+            })
 
-    stop_agent_flag = True
-    agent_running = False
+        stop_agent_flag = True
+        agent_running = False
+        stop_event.set()  # Signal stop event
 
-    state = load_agent_state()
-    state["running"] = False
-    state["last_stopped"] = datetime.now().isoformat()
-    save_agent_state(state)
+        state = load_agent_state()
+        state["running"] = False
+        state["last_stopped"] = datetime.now().isoformat()
+        save_agent_state(state)
 
     add_console_log("Trading agent stop requested via dashboard", "info")
 
@@ -826,7 +835,7 @@ def health_check():
 
 def cleanup_and_exit(signum=None, frame=None):
     """Graceful shutdown handler."""
-    global agent_running, stop_agent_flag, shutdown_in_progress
+    global agent_running, stop_agent_flag, shutdown_in_progress, log_writer_running
 
     if shutdown_in_progress:
         return
@@ -836,29 +845,51 @@ def cleanup_and_exit(signum=None, frame=None):
     print("🛑 SHUTDOWN SIGNAL RECEIVED")
     print("=" * 60)
 
-    if agent_running:
-        print("⏹️  Stopping trading agent...")
-        stop_agent_flag = True
-        agent_running = False
+    # Stop trading agent
+    with state_lock:
+        if agent_running:
+            print("⏹️  Stopping trading agent...")
+            stop_agent_flag = True
+            agent_running = False
+            stop_event.set()  # Signal stop event
 
-        if agent_thread and agent_thread.is_alive():
-            print("   Waiting for agent thread to finish...")
-            agent_thread.join(timeout=5)
+    if agent_thread and agent_thread.is_alive():
+        print("   Waiting for agent thread to finish...")
+        agent_thread.join(timeout=10)  # Increased timeout to 10 seconds
 
-        try:
-            state = load_agent_state()
-            state["running"] = False
-            state["last_stopped"] = datetime.now().isoformat()
-            save_agent_state(state)
-            add_console_log("Agent stopped - server shutting down", "info")
-            print("   ✅ Agent stopped and state saved")
-        except Exception as e:
-            print(f"   ⚠️  Error saving agent state: {e}")
-    else:
-        print("ℹ️  Trading agent was not running")
+        if agent_thread.is_alive():
+            print("   ⚠️  Agent thread still running after timeout")
+        else:
+            print("   ✅ Agent thread stopped")
+
+    # Save final state
+    try:
+        state = load_agent_state()
+        state["running"] = False
+        state["last_stopped"] = datetime.now().isoformat()
+        save_agent_state(state)
+        add_console_log("Agent stopped - server shutting down", "info")
+        print("   ✅ Agent state saved")
+    except Exception as e:
+        print(f"   ⚠️  Error saving agent state: {e}")
+
+    # Stop log writer thread
+    print("⏹️  Stopping log writer...")
+    log_writer_running = False
+
+    if log_writer_thread and log_writer_thread.is_alive():
+        print("   Waiting for log writer to flush...")
+        log_writer_thread.join(timeout=5)
+
+        if log_writer_thread.is_alive():
+            print("   ⚠️  Log writer still running after timeout")
+        else:
+            print("   ✅ Log writer stopped")
 
     try:
         add_console_log("Dashboard server shutting down", "info")
+        # Give a moment for final log to be queued
+        time.sleep(0.5)
     except Exception:
         pass
 
@@ -881,6 +912,13 @@ if __name__ == '__main__':
     # Get port from environment or default to 5000
     port = int(os.getenv('PORT', 5000))
 
+    # Start log writer thread
+    print("🚀 Starting async log writer...")
+    log_writer_running = True
+    log_writer_thread = threading.Thread(target=log_writer_worker, daemon=True)
+    log_writer_thread.start()
+    print("✅ Log writer started")
+
     # Startup Banner for Terminal
     print(f"""
 {'=' * 60}
@@ -895,7 +933,7 @@ Agent Status:  {'Running 🟢' if agent_running else 'Stopped 🔴'}
 Press Ctrl+C to shutdown gracefully
 """)
 
-    # Corrected: Call the function without 'def'
+    # Log startup messages
     add_console_log("Dashboard server started", "info")
 
     # Log a warning if the exchange functions failed to load
