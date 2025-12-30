@@ -21,20 +21,47 @@
                 <span class="timestamp" id="timestamp">--:--:--</span>
                 <select id="timezone-select" class="timezone-select" onchange="updateTimezone()">
                     <option value="local">Local Time</option>
-                    <option value="UTC">UTC</option>
-                    <option value="America/New_York">(GMT-5) New York</option>
-                    <option value="Europe/London">(GMT+1) London</option>
-                    <option value="Europe/Berlin">(GMT+2) Berlin</option>
-                    <option value="Asia/Dubai">(GMT+4) Dubai</option>
-                    <option value="Asia/Singapore">(GMT+8) Singapore</option>
-                    <option value="Asia/Tokyo">(GMT+9) Tokyo</option>
+                    <option value="UTC">(GMT+0) UTC</option>
+                    <optgroup label="Americas">
+                        <option value="America/New_York">(GMT-5) New York</option>
+                        <option value="America/Chicago">(GMT-6) Chicago</option>
+                        <option value="America/Denver">(GMT-7) Denver</option>
+                        <option value="America/Los_Angeles">(GMT-8) Los Angeles</option>
+                        <option value="America/Toronto">(GMT-5) Toronto</option>
+                        <option value="America/Sao_Paulo">(GMT-3) São Paulo</option>
+                        <option value="America/Mexico_City">(GMT-6) Mexico City</option>
+                    </optgroup>
+                    <optgroup label="Europe">
+                        <option value="Europe/London">(GMT+0) London</option>
+                        <option value="Europe/Berlin">(GMT+1) Berlin</option>
+                        <option value="Europe/Zurich">(GMT+1) Zurich</option>
+                        <option value="Europe/Paris">(GMT+1) Paris</option>
+                        <option value="Europe/Amsterdam">(GMT+1) Amsterdam</option>
+                        <option value="Europe/Stockholm">(GMT+1) Stockholm</option>
+                        <option value="Europe/Moscow">(GMT+3) Moscow</option>
+                        <option value="Europe/Istanbul">(GMT+3) Istanbul</option>
+                    </optgroup>
+                    <optgroup label="Asia">
+                        <option value="Asia/Dubai">(GMT+4) Dubai</option>
+                        <option value="Asia/Singapore">(GMT+8) Singapore</option>
+                        <option value="Asia/Hong_Kong">(GMT+8) Hong Kong</option>
+                        <option value="Asia/Shanghai">(GMT+8) Shanghai</option>
+                        <option value="Asia/Tokyo">(GMT+9) Tokyo</option>
+                        <option value="Asia/Seoul">(GMT+9) Seoul</option>
+                        <option value="Asia/Bangkok">(GMT+7) Bangkok</option>
+                        <option value="Asia/Mumbai">(GMT+5:30) Mumbai</option>
+                    </optgroup>
+                    <optgroup label="Pacific">
+                        <option value="Australia/Sydney">(GMT+11) Sydney</option>
+                        <option value="Australia/Melbourne">(GMT+11) Melbourne</option>
+                        <option value="Pacific/Auckland">(GMT+13) Auckland</option>
+                    </optgroup>
                 </select>
-                <button class="icon-btn" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
-                    <span id="theme-icon">☀️</span>
-                </button>
-                <button class="icon-btn" onclick="openSettings()" title="Settings">⚙️</button>
+                <button class="btn btn-settings" onclick="openSettings()" title="Settings">⚙️ Settings</button>
                 <button class="btn btn-run" id="run-btn" onclick="runAgent()">▶ RUN</button>
-                <button class="btn btn-stop" id="stop-btn" onclick="stopAgent()" style="display:none;">⏹ STOP</button>
+                <button class="btn btn-running" id="running-indicator" style="display:none;" onclick="stopAgent()" title="Click to stop agent">
+                    <span class="pulse-dot"></span> Running
+                </button>
                 <button class="btn btn-logout" onclick="logout()">Logout</button>
             </div>
         </header>

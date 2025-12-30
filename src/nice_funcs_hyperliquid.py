@@ -1155,14 +1155,24 @@ def close_complete_position(symbol, account, slippage=0.01):
             market_buy(symbol, pos_size, slippage=slippage, account=account)
             
         print(f'{colored("✅ Position closed successfully!", "green")}')
-        
-        # Log to dashboard
+
+        # Log to dashboard - verify position was actually closed
         try:
             side = "LONG" if is_long else "SHORT"
-            add_console_log(f"✔️ Closed complete {side} {symbol}", "trade")
+            # Check if position was fully closed
+            time.sleep(0.5)  # Brief delay to allow exchange to update
+            new_pos_data = get_position(symbol, account)
+            _, still_in_pos, new_size, _, _, _, _ = new_pos_data
+
+            if not still_in_pos or new_size == 0:
+                add_console_log(f"✔️ Closed Full {side} {symbol}", "trade")
+            else:
+                reduction_amount = pos_size - new_size
+                reduction_pct = (reduction_amount / pos_size) * 100 if pos_size > 0 else 0
+                add_console_log(f"✔️ Reduced {side} {symbol} by {reduction_pct:.0f}% (${reduction_amount:.2f} remaining: ${new_size:.2f})", "trade")
         except Exception:
             pass
-        
+
         return True
 
     except Exception as e:

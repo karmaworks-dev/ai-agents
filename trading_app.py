@@ -223,7 +223,6 @@ try:
 
     EXCHANGE_CONNECTED = True
     print("✅ HyperLiquid functions loaded")
-    add_console_log("✅ HyperLiquid functions loaded")
 
 except ImportError:
     try:
@@ -576,8 +575,8 @@ def run_trading_agent():
             from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS, SLEEP_BETWEEN_RUNS_MINUTES
             trading_agent_module = "trading_agent (sys.path)"
 
-    add_console_log(f"Loaded trading_agent from: {trading_agent_module}", "info")
-    add_console_log(f"Using exchange: {EXCHANGE}", "info")
+    add_console_log("Loaded trading_agent", "info")
+    add_console_log(f"Using exchange {EXCHANGE}", "info")
 
     # Convert minutes to seconds for sleep
     sleep_seconds = SLEEP_BETWEEN_RUNS_MINUTES * 60
@@ -602,9 +601,6 @@ def run_trading_agent():
                 tokens = SYMBOLS
             else:
                 tokens = MONITORED_TOKENS
-
-            # Log analysis start
-            add_console_log(f"🤖 Analyzing {len(tokens)} tokens", "info")
 
             # Run the trading cycle
             agent.run_trading_cycle()
@@ -817,8 +813,6 @@ def start_agent():
 
         agent_thread = threading.Thread(target=run_trading_agent, daemon=True)
         agent_thread.start()
-
-    add_console_log("Trading agent started via dashboard", "success")
 
     return jsonify({
         "status": "started",

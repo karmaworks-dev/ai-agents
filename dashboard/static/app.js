@@ -7,13 +7,6 @@ let portfolioChart = null;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Dashboard initializing...');
 
-    // Load saved theme
-    const savedTheme = localStorage.getItem('theme') || 'dark';
-    if (savedTheme === 'light') {
-        document.body.classList.add('light-mode');
-        document.getElementById('theme-icon').textContent = '🌙';
-    }
-
     // Load saved timezone preference
     const savedTimezone = localStorage.getItem('preferred_timezone') || 'local';
     const timezoneSelect = document.getElementById('timezone-select');
@@ -172,23 +165,23 @@ function updateTimestamp() {
 function updateAgentBadge(isRunning, isExecuting = false) {
     const badge = document.getElementById('agent-badge');
     const runBtn = document.getElementById('run-btn');
-    const stopBtn = document.getElementById('stop-btn');
-    
+    const runningIndicator = document.getElementById('running-indicator');
+
     if (isExecuting) {
         badge.textContent = 'Analyzing';
         badge.className = 'agent-badge running';
         runBtn.style.display = 'none';
-        stopBtn.style.display = 'inline-block';
+        runningIndicator.style.display = 'flex';
     } else if (isRunning) {
         badge.textContent = 'Waiting';
         badge.className = 'agent-badge running';
         runBtn.style.display = 'none';
-        stopBtn.style.display = 'inline-block';
+        runningIndicator.style.display = 'flex';
     } else {
         badge.textContent = 'Ready';
         badge.className = 'agent-badge ready';
         runBtn.style.display = 'inline-block';
-        stopBtn.style.display = 'none';
+        runningIndicator.style.display = 'none';
     }
 }
 
@@ -482,25 +475,8 @@ window.addEventListener('beforeunload', () => {
 });
 
 // ============================================================================
-// THEME TOGGLE
+// THEME TOGGLE - REMOVED (Dark mode only)
 // ============================================================================
-
-function toggleTheme() {
-    const body = document.body;
-    const themeIcon = document.getElementById('theme-icon');
-
-    if (body.classList.contains('light-mode')) {
-        // Switch to dark mode
-        body.classList.remove('light-mode');
-        themeIcon.textContent = '☀️';
-        localStorage.setItem('theme', 'dark');
-    } else {
-        // Switch to light mode
-        body.classList.add('light-mode');
-        themeIcon.textContent = '🌙';
-        localStorage.setItem('theme', 'light');
-    }
-}
 
 // ============================================================================
 // SETTINGS MODAL
@@ -616,27 +592,81 @@ async function updatePortfolioChart() {
 function renderPortfolioChart(history) {
     const container = document.getElementById('portfolio-chart');
 
-    // Simple sparkline visualization
+    // Extract balance values
     const values = history.map(h => h.balance);
     const max = Math.max(...values);
     const min = Math.min(...values);
     const range = max - min;
 
     if (range === 0) {
-        container.innerHTML = `Balance: $${values[0].toFixed(2)} (No change)`;
+        container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Balance: $${values[0].toFixed(2)} (No change)</div>`;
         return;
     }
 
-    // Create simple bars
-    const bars = values.map(val => {
-        const height = ((val - min) / range) * 100;
-        return `<div style="height: ${height}%; background: var(--accent-green); width: ${100 / values.length}%; display: inline-block;"></div>`;
-    }).join('');
+    // SVG dimensions
+    const width = 600;
+    const height = 120;
+    const padding = 10;
+
+    // Calculate points for the line
+    const points = values.map((val, i) => {
+        const x = (i / (values.length - 1)) * (width - padding * 2) + padding;
+        const y = height - padding - ((val - min) / range) * (height - padding * 2);
+        return { x, y };
+    });
+
+    // Create smooth path using quadratic bezier curves
+    let pathD = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        const cpx = (prev.x + curr.x) / 2;
+        const cpy = (prev.y + curr.y) / 2;
+        pathD += ` Q ${prev.x} ${prev.y} ${cpx} ${cpy}`;
+    }
+    pathD += ` L ${points[points.length - 1].x} ${points[points.length - 1].y}`;
+
+    // Create area fill path (for gradient)
+    let areaD = pathD + ` L ${width - padding} ${height} L ${padding} ${height} Z`;
+
+    // Determine color based on trend
+    const trend = values[values.length - 1] >= values[0];
+    const lineColor = trend ? 'var(--accent-green)' : 'var(--accent-red)';
+    const gradientId = trend ? 'gradient-green' : 'gradient-red';
 
     container.innerHTML = `
-        <div style="width: 100%; height: 100%; display: flex; align-items: flex-end; gap: 2px;">
-            ${bars}
-        </div>
+        <svg width="100%" height="120" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="display: block;">
+            <defs>
+                <linearGradient id="gradient-green" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color: rgba(0, 255, 136, 0.3); stop-opacity: 1" />
+                    <stop offset="100%" style="stop-color: rgba(0, 255, 136, 0); stop-opacity: 0" />
+                </linearGradient>
+                <linearGradient id="gradient-red" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color: rgba(255, 71, 87, 0.3); stop-opacity: 1" />
+                    <stop offset="100%" style="stop-color: rgba(255, 71, 87, 0); stop-opacity: 0" />
+                </linearGradient>
+            </defs>
+
+            <!-- Gradient fill under line -->
+            <path d="${areaD}" fill="url(#${gradientId})" opacity="0.5"/>
+
+            <!-- Main line -->
+            <path d="${pathD}"
+                  fill="none"
+                  stroke="${lineColor}"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  filter="drop-shadow(0 0 3px ${lineColor})"
+                  opacity="0.9"/>
+
+            <!-- End point indicator -->
+            <circle cx="${points[points.length - 1].x}"
+                    cy="${points[points.length - 1].y}"
+                    r="3"
+                    fill="${lineColor}"
+                    filter="drop-shadow(0 0 4px ${lineColor})"/>
+        </svg>
     `;
 }
 

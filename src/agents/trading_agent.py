@@ -916,6 +916,12 @@ Return ONLY valid JSON with the following structure:
                 )
 
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
+
+                # Add short summary for dashboard
+                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
+                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
+                add_console_log(f"   → {summary}", "info")
+
                 return swarm_result
 
             # SINGLE MODEL MODE
@@ -973,6 +979,11 @@ Return ONLY valid JSON with the following structure:
                 )
 
                 add_console_log(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
+
+                # Add short summary for dashboard
+                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
+                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
+                add_console_log(f"   → {summary}", "info")
 
                 return response
 
@@ -1050,8 +1061,37 @@ Return ONLY valid JSON with the following structure:
             else:
                 available_tokens = MONITORED_TOKENS
 
-            # AI prompt for allocation
-            allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
+            # AI prompt for allocation (different format for exchanges vs Solana)
+            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                # For centralized exchanges: use SYMBOLS (BTC, ETH, SOL)
+                allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
+
+Given:
+- Total portfolio size: ${account_balance}
+- Maximum position size: ${max_position_size} ({MAX_POSITION_PERCENTAGE}% of total)
+- Minimum cash buffer: {CASH_PERCENTAGE}%
+- Available symbols: {available_tokens}
+- Exchange: {EXCHANGE}
+
+Provide a portfolio allocation that:
+1. Never exceeds max position size per token
+2. Maintains minimum cash buffer
+3. Returns allocation as a JSON object with SYMBOL NAMES as keys and USD amounts as values
+4. Use EXACT symbol names from the available symbols list (e.g., "BTC", "ETH", "SOL")
+5. For cash allocation, use "{USDC_ADDRESS}" as the key
+
+Example format:
+{{
+    "BTC": 25.50,
+    "ETH": 30.00,
+    "SOL": 15.25,
+    "{USDC_ADDRESS}": 5.00
+}}
+
+CRITICAL: Use SYMBOL NAMES (like "BTC", "ETH", "SOL"), NOT addresses!"""
+            else:
+                # For Solana: use token addresses
+                allocation_prompt = f"""You are our Portfolio Allocation AI 🌙
 
 Given:
 - Total portfolio size: ${account_balance}
@@ -1219,6 +1259,47 @@ Trading Recommendations (BUY signals only):
                             log_position_open(token, "LONG", notional_value)
                         except Exception:
                             pass
+                    elif current_position > target_allocation:
+                        # Need to REDUCE position
+                        reduction_amount = current_position - target_allocation
+
+                        if target_allocation == 0:
+                            # Full close
+                            print(f"📉 Closing complete position for {token}")
+                            add_console_log(f"📉 Closing complete {token} position", "info")
+
+                            if EXCHANGE == "HYPERLIQUID":
+                                n.close_complete_position(token, self.account)
+                            else:
+                                n.chunk_kill(token, max_usd_order_size, slippage)
+
+                            print(f"✅ Position closed for {token}")
+                        else:
+                            # Partial reduction
+                            reduction_pct = (reduction_amount / current_position) * 100
+                            print(f"📉 Reducing {token} position by ${reduction_amount:.2f} ({reduction_pct:.0f}%)")
+                            add_console_log(f"📉 Reducing {token} by {reduction_pct:.0f}% (${reduction_amount:.2f})", "info")
+
+                            # Get current position details to determine side
+                            if EXCHANGE == "HYPERLIQUID":
+                                pos_data = n.get_position(token, self.account)
+                                _, im_in_pos, pos_size, _, _, _, is_long = pos_data
+
+                                if im_in_pos:
+                                    if is_long:
+                                        # Reduce LONG by selling
+                                        cprint(f"🔵 Selling ${reduction_amount:.2f} to reduce LONG", "yellow")
+                                        n.market_sell(token, reduction_amount, self.account)
+                                    else:
+                                        # Reduce SHORT by buying
+                                        cprint(f"🔵 Buying ${reduction_amount:.2f} to reduce SHORT", "yellow")
+                                        n.market_buy(token, reduction_amount, self.account)
+                            else:
+                                # For Solana/other exchanges
+                                n.chunk_kill(token, reduction_amount, slippage)
+
+                            print(f"✅ Position reduced for {token}")
+                            add_console_log(f"✅ {token} position reduced by {reduction_pct:.0f}%", "success")
                     else:
                         print(f"⏸️ Position already at target size for {token}")
                         add_console_log(f"⏸️ {token} already at target - no action", "info")
