@@ -93,7 +93,7 @@ SAVE_OHLCV_DATA = False
 # reliable models: "gemini-1.5-flash" (Fastest), "gemini-1.5-pro" (Smartest)
 # experimental: "gemini-3-pro-preview" (If you have access)
 
-AI_MODEL = "gemini-2.5-flash"  # ⚡ RECOMMENDED for trading (Low Latency)
+AI_MODEL = "gemini-3-flash"  # ⚡ RECOMMENDED for trading (Low Latency)
 # AI_MODEL = "gemini-1.5-pro"  # Use this if you need deeper reasoning
 # AI_MODEL = "gemini-3-pro-preview" # Use this only if you are whitelisted
 #gemini-2.5-flash-lite # Ultra-fast lightweight Gemini 2.5 model
