@@ -170,8 +170,8 @@ max_usd_order_size = 3
 CASH_PERCENTAGE = 10
 
 # 📊 MARKET DATA COLLECTION
-DAYSBACK_4_DATA = 2              
-DATA_TIMEFRAME = '30m'            
+DAYSBACK_4_DATA = 1              
+DATA_TIMEFRAME = '5m'            
 SAVE_OHLCV_DATA = False          
 
 # ⚡ TRADING EXECUTION SETTINGS
