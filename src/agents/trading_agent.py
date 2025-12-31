@@ -431,17 +431,19 @@ def calculate_position_size(account_balance):
 # ============================================================================
 
 class TradingAgent:
-    def __init__(self, timeframe=None, days_back=None):
+    def __init__(self, timeframe=None, days_back=None, stop_check_callback=None):
         """
         Initialize Trading Agent with configurable settings
 
         Args:
             timeframe (str): Data timeframe (e.g., '5m', '30m', '1h'). Defaults to DATA_TIMEFRAME.
             days_back (int): Days of historical data to fetch. Defaults to DAYSBACK_4_DATA.
+            stop_check_callback (callable): Optional callback that returns True if agent should stop.
         """
         # Store configurable settings as instance variables
         self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
         self.days_back = days_back if days_back is not None else DAYSBACK_4_DATA
+        self.stop_check_callback = stop_check_callback
 
         self.account = None
         if EXCHANGE == "HYPERLIQUID":
@@ -699,9 +701,10 @@ FULL DATASET:
             '1h': 60, '4h': 240, '1d': 1440
         }
 
-        tf_mins = timeframe_minutes.get(DATA_TIMEFRAME, 30)
+        # Use instance variables instead of global constants
+        tf_mins = timeframe_minutes.get(self.timeframe, 30)
         # Minimum age: at least 60 minutes (1 hour) for proper position evolution
-        min_age_hours = max(1.0, tf_mins * DAYSBACK_4_DATA / 60)
+        min_age_hours = max(1.0, tf_mins * self.days_back / 60)
 
         cprint(f"\n🔍 VALIDATING CLOSE DECISION FOR {symbol}:", "yellow", attrs=["bold"])
 
@@ -1623,6 +1626,12 @@ Trading Recommendations (BUY signals only):
 
         cprint("=" * 60 + "\n", "cyan")
 
+    def should_stop(self):
+        """Check if agent should stop execution"""
+        if self.stop_check_callback is not None:
+            return self.stop_check_callback()
+        return False
+
     def run(self):
         """Run the trading agent (implements BaseAgent interface)"""
         self.run_trading_cycle()
@@ -1634,22 +1643,32 @@ Trading Recommendations (BUY signals only):
             cprint(f"\n{'=' * 80}", "cyan")
             cprint(f"🔄 TRADING CYCLE START: {current_time}", "white", "on_green", attrs=["bold"])
             cprint(f"{'=' * 80}", "cyan")
-            
+
             add_console_log(f"🔄 TRADING CYCLE STARTED", "info")
+
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                return
 
             # STEP 1: FETCH ALL OPEN POSITIONS
             add_console_log("Fetching open positions...", "info")
             open_positions = self.fetch_all_open_positions()
             add_console_log(f"Found {len(open_positions)} open position(s)", "info")
 
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                return
+
             # STEP 2: COLLECT MARKET DATA
             if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                 tokens_to_trade = SYMBOLS
             else:
                 tokens_to_trade = MONITORED_TOKENS
-                
+
             add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
-            
+
             cprint("📊 Collecting market data for analysis...", "white", "on_blue")
             market_data = collect_all_tokens(
                 tokens=tokens_to_trade,
@@ -1657,14 +1676,30 @@ Trading Recommendations (BUY signals only):
                 timeframe=self.timeframe,
                 exchange=EXCHANGE,
             )
-            
+
             add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
+
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                return
 
             # STEP 3: AI ANALYZES OPEN POSITIONS
             close_decisions = {}
             if open_positions:
                 close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
+
+                # Check for stop signal before executing closes
+                if self.should_stop():
+                    add_console_log("⏹️ Stop signal received - skipping position closes", "warning")
+                    return
+
                 self.execute_position_closes(close_decisions)
+
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                return
 
             # STEP 4: REFETCH POSITIONS & MARKET DATA AFTER CLOSURES
             time.sleep(2)  # short delay to allow exchange updates
@@ -1677,9 +1712,19 @@ Trading Recommendations (BUY signals only):
                 exchange=EXCHANGE,
             )
 
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                return
+
             # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
             cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
             for token, data in market_data.items():
+                # Check for stop signal before each token analysis
+                if self.should_stop():
+                    add_console_log(f"⏹️ Stop signal received - stopping analysis at {token}", "warning")
+                    return
+
                 cprint(f"\n🤖 Analyzing {token}...", "white", "on_green")
                 add_console_log(f"🤖 Analyzing {token}...", "info")
 
@@ -1692,18 +1737,39 @@ Trading Recommendations (BUY signals only):
                     print(analysis)
                     print("\n" + "=" * 50 + "\n")
 
+            # Check for stop signal before showing recommendations
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                return
+
             # STEP 6: SHOW RECOMMENDATIONS
             cprint("\n📊 AI TRADING RECOMMENDATIONS:", "white", "on_blue")
             summary_df = self.recommendations_df[["token", "action", "confidence"]].copy()
             print(summary_df.to_string(index=False))
 
+            # Check for stop signal before executing trades
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - skipping trade execution", "warning")
+                return
+
             # STEP 7: HANDLE EXITS & ENTRIES
             self.handle_exits()
+
+            # Check for stop signal
+            if self.should_stop():
+                add_console_log("⏹️ Stop signal received - skipping portfolio allocation", "warning")
+                return
+
             buy_recommendations = self.recommendations_df[self.recommendations_df["action"] == "BUY"]
 
             if USE_PORTFOLIO_ALLOCATION and len(buy_recommendations) > 0:
                 allocation = self.allocate_portfolio()
                 if allocation:
+                    # Check for stop signal before executing allocations
+                    if self.should_stop():
+                        add_console_log("⏹️ Stop signal received - skipping allocations", "warning")
+                        return
+
                     cprint("\n💼 Executing portfolio allocations...", "white", "on_blue")
                     add_console_log("💼 Executing portfolio allocations...", "info")
                     self.execute_allocations(allocation)
@@ -1757,20 +1823,22 @@ def main():
     """Main function - simple cycle every X minutes"""
     cprint("🚀 AI Trading System Starting Up! 🚀", "white", "on_blue")
     print("🛑 Press Ctrl+C to stop.\n")
-    
+
     agent = TradingAgent()
-    
+
     while True:
         try:
             # Run the complete cycle
             agent.run_trading_cycle()
-            
-            # Sleep until next cycle
+
+            # Log next cycle time BEFORE sleeping
             next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
             cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
-            time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
             add_console_log(f"Next cycle in {SLEEP_BETWEEN_RUNS_MINUTES} minutes", "info")
-            
+
+            # Sleep until next cycle
+            time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
+
         except KeyboardInterrupt:
             cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
             add_console_log("👋 AI Agent shutting down gracefully...", "info")
@@ -1779,6 +1847,7 @@ def main():
             cprint(f"\n❌ Error in main loop: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
+            cprint(f"\n⏰ Retrying in {SLEEP_BETWEEN_RUNS_MINUTES} minutes...", "yellow")
             time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
 
 

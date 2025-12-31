@@ -599,6 +599,12 @@ def save_agent_state(state):
 # TRADING AGENT CONTROL
 # ============================================================================
 
+def should_stop_agent():
+    """Check if agent should stop - used as callback for trading agent"""
+    with state_lock:
+        return stop_agent_flag or not agent_running
+
+
 def run_trading_agent():
     """Run the trading agent in a loop with output capture"""
     global agent_running, agent_executing, stop_agent_flag
@@ -644,10 +650,11 @@ def run_trading_agent():
             # Reload settings in case they changed
             user_settings = load_settings()
 
-            # Create agent instance with user settings
+            # Create agent instance with user settings and stop callback
             agent = TradingAgent(
                 timeframe=user_settings.get('timeframe', '30m'),
-                days_back=user_settings.get('days_back', 2)
+                days_back=user_settings.get('days_back', 2),
+                stop_check_callback=should_stop_agent
             )
 
             # Get tokens list based on exchange
@@ -660,12 +667,17 @@ def run_trading_agent():
             with state_lock:
                 agent_executing = True
 
-            # Run the trading cycle
+            # Run the trading cycle (will check stop callback periodically)
             agent.run_trading_cycle()
 
             # Set executing flag back to False (analysis complete, entering wait phase)
             with state_lock:
                 agent_executing = False
+
+            # Check if stopped mid-cycle
+            if should_stop_agent():
+                add_console_log("Agent stopped mid-cycle", "info")
+                break
 
             # Calculate cycle duration
             cycle_duration = int(time.time() - cycle_start)
