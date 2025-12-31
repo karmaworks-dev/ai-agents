@@ -90,15 +90,17 @@ SAVE_OHLCV_DATA = False
 
 # AI Model Settings 🤖
 # 🤖 AI AGENT SETTINGS (GEMINI POWERED) 💎
-# reliable models: "gemini-1.5-flash" (Fastest), "gemini-1.5-pro" (Smartest)
-# experimental: "gemini-3-pro-preview" (If you have access)
+# Available Gemini models (see AI Models Reference Guide):
+# - "gemini-3-pro" - Latest flagship model (1M context)
+# - "gemini-3-flash" - Fast, cost-effective (1M context)
+# - "gemini-2.5-pro" - Powerful, stable (1M context)
+# - "gemini-2.5-flash" - Fast variant (1M context) ⚡ RECOMMENDED for trading
+# - "gemini-2.5-flash-lite" - Ultra-efficient (1M context)
+# - "gemini-2.0-flash" - Multimodal (1M context)
+# - "gemini-1.5-flash" - Legacy fast model (1M context)
+# - "gemini-1.5-pro" - Legacy pro model (1M context)
 
 AI_MODEL = "gemini-2.5-flash"  # ⚡ RECOMMENDED for trading (Low Latency)
-# AI_MODEL = "gemini-1.5-pro"  # Use this if you need deeper reasoning
-# AI_MODEL = "gemini-3-pro-preview" # Use this only if you are whitelisted
-#gemini-2.5-flash-lite # Ultra-fast lightweight Gemini 2.5 model
-#gemini-2.5-pro # Gemini 2.5 model with stronger reasoning
-#gemini-1.5-flash # Fast Gemini 1.5 model
 
 AI_MAX_TOKENS = 2000 
 AI_TEMPERATURE = 0.3

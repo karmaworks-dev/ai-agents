@@ -61,9 +61,9 @@ from src.models.model_factory import model_factory
 # Configure which models to use in the swarm (set to True to enable)
 SWARM_MODELS = {
     # 🌙 Moon Dev's Active Swarm Models - 7 Model Configuration
-    "gemini": (True, "gemini", "gemini-2.0-flash-lite"), # Gemini 2 Pro Preview - Advanced reasoning (if whitelisted)
-    "gemini": (True, "gemini", "gemini-2.5-pro"),  # Gemini 2.5 Flash Lite - Fast & cheap! ($0.10/$0.40 per 1M tokens)
-    #"gemini": (True, "gemini", "gemini-3-pro-preview"),  # Gemini 3 Pro - Most advanced Gemini model (if whitelisted)
+    "gemini": (True, "gemini", "gemini-2.0-flash"), # Gemini 2.0 Flash - Multimodal model
+    "gemini": (True, "gemini", "gemini-2.5-pro"),  # Gemini 2.5 Pro - Powerful, stable ($2.50/$10.00 per 1M tokens)
+    #"gemini": (True, "gemini", "gemini-3-pro"),  # Gemini 3 Pro - Most advanced Gemini model (latest flagship)
     "ollama": (True, "ollama", "deepseek-chat"),  # DeepSeek-R1 local model
     "ollama": (True, "ollama", "qwen/qwen3:8b"),  #  Qwen3 8B via Ollama - Fast local reasoning!
     

@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 KEY = os.getenv("GEMINI_KEY")
-MODEL = "gemini-1.5-flash"  # Change to 'gemini-3-pro-preview' to test your specific access
+MODEL = "gemini-1.5-flash"  # Change to 'gemini-3-pro' to test latest flagship model
 
 if not KEY:
     print("❌ No GEMINI_KEY found in .env")

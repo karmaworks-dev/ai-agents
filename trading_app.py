@@ -33,7 +33,12 @@ sys.path.insert(0, str(BASE_DIR))
 
 # Import shared logging utility (prevents circular imports)
 from src.utils.logging_utils import add_console_log, log_queue, log_position_open
-from src.utils.settings_manager import load_settings, save_settings, validate_settings
+from src.utils.settings_manager import (
+    load_settings,
+    save_settings,
+    validate_settings,
+    get_available_models_for_provider
+)
 
 # Load environment variables
 load_dotenv()
@@ -995,7 +1000,19 @@ def settings():
 
             # Save settings
             if save_settings(data):
-                add_console_log(f"Settings updated: Timeframe={data.get('timeframe')}, Days Back={data.get('days_back')}, Sleep={data.get('sleep_minutes')} min", "info")
+                # Build detailed log message
+                log_parts = [
+                    f"Timeframe={data.get('timeframe')}",
+                    f"Days Back={data.get('days_back')}",
+                    f"Sleep={data.get('sleep_minutes')} min"
+                ]
+
+                # Add AI model info if present
+                if 'ai_provider' in data and 'ai_model' in data:
+                    log_parts.append(f"AI={data.get('ai_provider')}/{data.get('ai_model')}")
+
+                add_console_log(f"Settings updated: {', '.join(log_parts)}", "info")
+
                 return jsonify({
                     'success': True,
                     'message': 'Settings saved successfully',
@@ -1013,6 +1030,53 @@ def settings():
                 'success': False,
                 'message': f'Error: {str(e)}'
             }), 500
+
+
+@app.route('/api/ai-models', methods=['GET'])
+@login_required
+def get_ai_models():
+    """
+    Get available AI models for all providers or a specific provider
+    Query param: ?provider=gemini (optional)
+    """
+    try:
+        provider = request.args.get('provider')
+
+        if provider:
+            # Get models for specific provider
+            models = get_available_models_for_provider(provider)
+            if not models:
+                return jsonify({
+                    'success': False,
+                    'message': f'Invalid provider: {provider}'
+                }), 400
+
+            return jsonify({
+                'success': True,
+                'provider': provider,
+                'models': models
+            })
+        else:
+            # Get all providers and their models
+            all_providers = ['anthropic', 'openai', 'gemini', 'deepseek', 'xai',
+                           'mistral', 'cohere', 'perplexity', 'groq', 'ollama', 'openrouter']
+
+            all_models = {}
+            for p in all_providers:
+                all_models[p] = get_available_models_for_provider(p)
+
+            return jsonify({
+                'success': True,
+                'providers': all_providers,
+                'models': all_models
+            })
+
+    except Exception as e:
+        print(f"❌ Error getting AI models: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
 
 
 @app.route('/health')
