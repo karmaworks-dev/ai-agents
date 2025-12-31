@@ -53,40 +53,16 @@ def collect_token_data(token, days_back=DAYSBACK_4_DATA, timeframe=DATA_TIMEFRAM
             cprint(f"🔄 Converting timeframe: {timeframe} → {hl_timeframe} (for HyperLiquid)", "yellow")
 
         # Route to appropriate data source based on exchange
-        bars_per_day = {
-            '1m': 1440, '3m': 480, '5m': 288, '15m': 96, '30m': 48,
-            '1H': 24, '2H': 12, '4H': 6, '6H': 4, '8H': 3, '12H': 2,
-            '1h': 24, '2h': 12, '4h': 6, '6h': 4, '8h': 3, '12h': 2,  # lowercase versions
-            '1D': 1, '3D': 1/3, '1W': 1/7, '1M': 1/30,
-            '1d': 1, '3d': 1/3, '1w': 1/7, '1month': 1/30  # lowercase versions
-        }
-
-        bars_needed = int(days_back * bars_per_day.get(timeframe, 24))  # Default to hourly if unknown
-        cprint(f"📊 Calculating bars: {days_back} days × {timeframe} = {bars_needed} bars", "cyan")
-
-        # Convert timeframe to HyperLiquid format (lowercase h for hours)
-        hl_timeframe = timeframe.replace('H', 'h').replace('D', 'd').replace('W', 'w').replace('M', 'month')
-        if hl_timeframe != timeframe:
-            cprint(f"🔄 Converting timeframe: {timeframe} → {hl_timeframe} (for HyperLiquid)", "yellow")
-
-        # Route to appropriate data source based on exchange
-        if exchange == "HYPERLIQUID":
-            # Use HyperLiquid API
-            cprint(f"🏦 Using HyperLiquid API for {token}", "cyan")
+        if exchange in ["HYPERLIQUID", "ASTER", "EXTENDED"]:
+            # Use HyperLiquid API for all these exchanges (same symbols, same data source)
+            exchange_label = "HyperLiquid" if exchange == "HYPERLIQUID" else f"{exchange} (via HyperLiquid)"
+            cprint(f"🏦 Using {exchange_label} API for {token}", "cyan")
             try:
                 from src import nice_funcs_hyperliquid as hl
                 data = hl.get_data(symbol=token, timeframe=hl_timeframe, bars=bars_needed, add_indicators=True)
             except Exception as e:
                 cprint(f"⚠️ Hyperliquid helper unavailable: {e}", "yellow")
                 return None
-        elif exchange == "ASTER":
-            # Use HyperLiquid API for Aster symbols too (same symbols, same data)
-            cprint(f"🏦 Using HyperLiquid API for {token} (Aster symbols)", "cyan")
-            data = hl.get_data(symbol=token, timeframe=hl_timeframe, bars=bars_needed, add_indicators=True)
-        elif exchange == "EXTENDED":
-            # Use HyperLiquid API for Extended symbols (same data source)
-            cprint(f"🏦 Using HyperLiquid API for {token} (Extended symbols)", "cyan")
-            data = hl.get_data(symbol=token, timeframe=hl_timeframe, bars=bars_needed, add_indicators=True)
         else:
             # Default: Use Solana/Birdeye API
             cprint(f"🏦 Using Solana/Birdeye API for {token}", "cyan")
