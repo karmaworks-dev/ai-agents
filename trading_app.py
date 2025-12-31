@@ -103,6 +103,7 @@ SYMBOLS = [
     'AAVE',       # Aave
     'LINK',       # Chainlink
     'LTC',        # Litecoin
+    'HYPE',       # Hyperliquid Exchange Token
     'FARTCOIN',   # FartCoin
 ]
 
