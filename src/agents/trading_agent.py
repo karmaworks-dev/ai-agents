@@ -791,7 +791,8 @@ Return ONLY valid JSON with the following structure:
                 reason = decision.get("reasoning", "")
                 color = "red" if action.upper() == "CLOSE" else "green"
                 cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
-                add_console_log(f"AI Decision → {symbol}: {action} | {reason}", "info")
+                # Short format for dashboard: "SYMBOL -> ACTION"
+                add_console_log(f"{symbol} -> {action}", "info")
 
             cprint("=" * 60 + "\n", "yellow")
             return decisions
@@ -918,10 +919,8 @@ Return ONLY valid JSON with the following structure:
 
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
 
-                # Add short summary for dashboard
-                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
-                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
-                add_console_log(f"   → {summary}", "info")
+                # Short format for dashboard: "TOKEN -> ACTION | CONFIDENCE%"
+                add_console_log(f"{token} -> {action} | {confidence}%", "info")
 
                 return swarm_result
 
@@ -981,10 +980,8 @@ Return ONLY valid JSON with the following structure:
 
                 add_console_log(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
 
-                # Add short summary for dashboard
-                short_reasoning = reasoning.split('\n')[0][:40] if reasoning else "No reasoning"
-                summary = f"{action}, {short_reasoning.lower()} | {confidence}%"
-                add_console_log(f"   → {summary}", "info")
+                # Short format for dashboard: "TOKEN -> ACTION | CONFIDENCE%"
+                add_console_log(f"{token} -> {action} | {confidence}%", "info")
 
                 return response
 
