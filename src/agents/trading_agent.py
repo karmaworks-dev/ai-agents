@@ -500,7 +500,9 @@ def calculate_position_size(account_balance):
 # ============================================================================
 
 class TradingAgent:
-    def __init__(self, timeframe=None, days_back=None, stop_check_callback=None):
+    def __init__(self, timeframe=None, days_back=None, stop_check_callback=None,
+                 symbols=None, ai_provider=None, ai_model=None,
+                 ai_temperature=None, ai_max_tokens=None):
         """
         Initialize Trading Agent with configurable settings
 
@@ -508,11 +510,30 @@ class TradingAgent:
             timeframe (str): Data timeframe (e.g., '5m', '30m', '1h'). Defaults to DATA_TIMEFRAME.
             days_back (int): Days of historical data to fetch. Defaults to DAYSBACK_4_DATA.
             stop_check_callback (callable): Optional callback that returns True if agent should stop.
+            symbols (list): List of token symbols to analyze. Defaults to SYMBOLS.
+            ai_provider (str): AI provider to use (e.g., 'gemini', 'anthropic'). Defaults to AI_MODEL_TYPE.
+            ai_model (str): AI model name to use. Defaults to AI_MODEL_NAME.
+            ai_temperature (float): Temperature for AI model (0.0-1.0). Defaults to AI_TEMPERATURE.
+            ai_max_tokens (int): Max tokens for AI response. Defaults to AI_MAX_TOKENS.
         """
         # Store configurable settings as instance variables
         self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
         self.days_back = days_back if days_back is not None else DAYSBACK_4_DATA
         self.stop_check_callback = stop_check_callback
+
+        # Store AI settings (use passed values or fall back to config defaults)
+        self.ai_provider = ai_provider if ai_provider is not None else AI_MODEL_TYPE
+        self.ai_model_name = ai_model if ai_model is not None else AI_MODEL_NAME
+        self.ai_temperature = ai_temperature if ai_temperature is not None else AI_TEMPERATURE
+        self.ai_max_tokens = ai_max_tokens if ai_max_tokens is not None else AI_MAX_TOKENS
+
+        # Store symbols to analyze (use passed values or fall back to config)
+        if symbols is not None:
+            self.symbols = symbols
+        elif EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+            self.symbols = SYMBOLS
+        else:
+            self.symbols = MONITORED_TOKENS
 
         self.account = None
         if EXCHANGE == "HYPERLIQUID":
@@ -521,16 +542,16 @@ class TradingAgent:
                 # Standardized key lookup
                 raw_key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") or os.getenv("HYPER_LIQUID_KEY", "")
                 clean_key = raw_key.strip().replace('"', '').replace("'", "")
-                
+
                 if not clean_key:
                     raise ValueError("Private Key not found in .env")
-                
-                self.account = Account.from_key(clean_key) 
+
+                self.account = Account.from_key(clean_key)
                 self.address = os.getenv("ACCOUNT_ADDRESS")
-                
+
                 if not self.address:
                     self.address = self.account.address
-                    
+
                 cprint(f"✅ Account loaded successfully! Address: {self.address}", "green")
             except Exception as e:
                 cprint(f"❌ Error loading key: {e}", "red")
@@ -547,16 +568,16 @@ class TradingAgent:
             cprint("✅ Swarm mode initialized with 6 AI models!", "green")
 
             cprint("💼 Initializing fast model for portfolio calculations...", "cyan")
-            self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
+            self.model = model_factory.get_model(self.ai_provider, self.ai_model_name)
             if self.model:
                 cprint(f"✅ Allocation model ready: {self.model.model_name}", "green")
         else:
-            cprint(f"\n🤖 Initializing Trading Agent with {AI_MODEL_TYPE} model...", "cyan")
-            self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
+            cprint(f"\n🤖 Initializing Trading Agent with {self.ai_provider} model...", "cyan")
+            self.model = model_factory.get_model(self.ai_provider, self.ai_model_name)
             self.swarm = None
 
             if not self.model:
-                cprint(f"❌ Failed to initialize {AI_MODEL_TYPE} model!", "red")
+                cprint(f"❌ Failed to initialize {self.ai_provider} model!", "red")
                 cprint("Available models:", "yellow")
                 for model_type in model_factory._models.keys():
                     cprint(f"   - {model_type}", "yellow")
@@ -570,19 +591,14 @@ class TradingAgent:
 
         # Show which tokens will be analyzed
         cprint("\n🎯 Active Tokens for Trading:", "yellow", attrs=["bold"])
-        if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-            tokens_to_show = SYMBOLS
-            cprint(f"🦈 Exchange: {EXCHANGE} (using symbols)", "cyan")
-        else:
-            tokens_to_show = MONITORED_TOKENS
-            cprint(f"🦈 Exchange: SOLANA (using contract addresses)", "cyan")
+        cprint(f"🦈 Exchange: {EXCHANGE}", "cyan")
 
-        for i, token in enumerate(tokens_to_show, 1):
+        for i, token in enumerate(self.symbols, 1):
             token_display = token[:8] + "..." if len(token) > 8 else token
             cprint(f"   {i}. {token_display}", "cyan")
 
         cprint(
-            f"\n⏱️  Estimated analysis time: ~{len(tokens_to_show) * 60} seconds\n",
+            f"\n⏱️  Estimated analysis time: ~{len(self.symbols) * 60} seconds\n",
             "yellow"
         )
 
@@ -1812,10 +1828,8 @@ Trading Recommendations (BUY signals only):
                 return
 
             # STEP 2: COLLECT MARKET DATA
-            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-                tokens_to_trade = SYMBOLS
-            else:
-                tokens_to_trade = MONITORED_TOKENS
+            # Use self.symbols (set during __init__ from user settings or config defaults)
+            tokens_to_trade = self.symbols
 
             add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
 

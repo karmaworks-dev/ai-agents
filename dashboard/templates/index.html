@@ -123,115 +123,220 @@
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="modal" onclick="closeSettings(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-content settings-modal-wide" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <h2>Settings</h2>
                 <button class="modal-close" onclick="closeSettings()">&times;</button>
             </div>
+
+            <!-- Tab Navigation -->
+            <div class="settings-tabs">
+                <button class="settings-tab active" data-tab="chart" onclick="switchSettingsTab('chart')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+                    CHART
+                </button>
+                <button class="settings-tab" data-tab="mode" onclick="switchSettingsTab('mode')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6"></path></svg>
+                    MODE
+                </button>
+                <button class="settings-tab" data-tab="token" onclick="switchSettingsTab('token')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v12m-6-6h12"></path></svg>
+                    TOKEN
+                </button>
+                <button class="settings-tab" data-tab="models" onclick="switchSettingsTab('models')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                    MODELS
+                </button>
+            </div>
+
             <div class="modal-body">
-                <!-- Line 1: Timeframe and Days Back -->
-                <div class="setting-row">
-                    <div class="setting-group half">
-                        <label for="timeframe-select">Timeframe</label>
-                        <select id="timeframe-select" class="setting-input">
-                            <option value="5m">5 minutes</option>
-                            <option value="15m" selected>15 minutes</option>
-                            <option value="30m">30 minutes</option>
-                            <option value="1h">1 hour</option>
-                        </select>
-                    </div>
-                    <div class="setting-group half">
-                        <label for="days-back-select">Days Back</label>
-                        <select id="days-back-select" class="setting-input">
-                            <option value="1">1 day</option>
-                            <option value="2">2 days</option>
-                            <option value="3" selected>3 days</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Line 2: AI Provider and Model -->
-                <div class="setting-row">
-                    <div class="setting-group half">
-                        <label for="ai-provider-select">AI Provider</label>
-                        <select id="ai-provider-select" class="setting-input" onchange="updateModelOptions()">
-                            <option value="anthropic" selected>Claude (Anthropic)</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="deepseek">DeepSeek</option>
-                            <option value="groq">Groq</option>
-                            <option value="gemini">Google Gemini</option>
-                            <option value="ollama">Ollama (Local)</option>
-                        </select>
-                    </div>
-                    <div class="setting-group half">
-                        <label for="model-select">Model</label>
-                        <select id="model-select" class="setting-input">
-                            <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
-                            <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
-                            <option value="claude-3-opus-20240229">Claude 3 Opus</option>
-                        </select>
+                <!-- CHART Tab Content -->
+                <div id="tab-chart" class="settings-tab-content active">
+                    <div class="setting-section">
+                        <h3 class="section-title">Chart Configuration</h3>
+                        <div class="setting-row">
+                            <div class="setting-group half">
+                                <label for="timeframe-select">Timeframe</label>
+                                <select id="timeframe-select" class="setting-input">
+                                    <option value="1m">1 minute</option>
+                                    <option value="5m">5 minutes</option>
+                                    <option value="15m">15 minutes</option>
+                                    <option value="30m" selected>30 minutes</option>
+                                    <option value="1h">1 hour</option>
+                                    <option value="4h">4 hours</option>
+                                    <option value="1d">1 day</option>
+                                </select>
+                            </div>
+                            <div class="setting-group half">
+                                <label for="days-back-select">Days Back</label>
+                                <select id="days-back-select" class="setting-input">
+                                    <option value="1">1 day</option>
+                                    <option value="2" selected>2 days</option>
+                                    <option value="3">3 days</option>
+                                    <option value="5">5 days</option>
+                                    <option value="7">7 days</option>
+                                    <option value="14">14 days</option>
+                                    <option value="30">30 days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="setting-group">
+                            <label for="cycle-time-input">Cycle Time (minutes)</label>
+                            <div class="input-with-hint">
+                                <input type="number" id="cycle-time-input" class="setting-input" min="1" max="1440" value="30" />
+                                <span class="input-hint">How often the agent runs (1-1440 min)</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Line 3: Swarm Mode and Exchange -->
-                <div class="setting-row">
-                    <div class="setting-group half">
-                        <label for="swarm-mode-select">Mode</label>
-                        <select id="swarm-mode-select" class="setting-input">
-                            <option value="single" selected>Single Agent</option>
-                            <option value="swarm">Swarm Mode</option>
-                        </select>
+                <!-- MODE Tab Content -->
+                <div id="tab-mode" class="settings-tab-content">
+                    <div class="setting-section">
+                        <h3 class="section-title">Agent Mode</h3>
+                        <div class="mode-selector">
+                            <label class="mode-option">
+                                <input type="radio" name="swarm-mode" value="single" checked />
+                                <div class="mode-card">
+                                    <div class="mode-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"></circle><path d="M5.5 21v-2a4.5 4.5 0 0 1 9 0v2"></path></svg>
+                                    </div>
+                                    <div class="mode-info">
+                                        <span class="mode-name">Fast (Single Agent)</span>
+                                        <span class="mode-desc">One AI model analyzes all tokens quickly</span>
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="mode-option">
+                                <input type="radio" name="swarm-mode" value="swarm" />
+                                <div class="mode-card">
+                                    <div class="mode-icon">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="3"></circle><circle cx="15" cy="7" r="3"></circle><circle cx="6" cy="17" r="3"></circle><circle cx="12" cy="17" r="3"></circle><circle cx="18" cy="17" r="3"></circle></svg>
+                                    </div>
+                                    <div class="mode-info">
+                                        <span class="mode-name">Swarm (Multi-Agent)</span>
+                                        <span class="mode-desc">Multiple AI models analyze and reach consensus</span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
-                    <div class="setting-group half">
-                        <label for="exchange-select">Exchange</label>
-                        <select id="exchange-select" class="setting-input">
-                            <option value="HYPERLIQUID" selected>HyperLiquid</option>
-                            <option value="ASTER">Aster</option>
-                            <option value="SOLANA">Solana</option>
-                        </select>
+                </div>
+
+                <!-- TOKEN Tab Content -->
+                <div id="tab-token" class="settings-tab-content">
+                    <div class="setting-section">
+                        <h3 class="section-title">Token Selection</h3>
+                        <p class="section-desc">Select tokens to monitor from Hyperliquid exchange</p>
+
+                        <div class="token-categories">
+                            <!-- Crypto Category -->
+                            <div class="token-category">
+                                <div class="category-header" onclick="toggleCategory('crypto')">
+                                    <span class="category-icon">₿</span>
+                                    <span class="category-name">Crypto</span>
+                                    <span class="category-count" id="crypto-count">0</span>
+                                    <svg class="category-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="category-tokens" id="crypto-tokens">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Altcoins Category -->
+                            <div class="token-category">
+                                <div class="category-header" onclick="toggleCategory('altcoins')">
+                                    <span class="category-icon">⚡</span>
+                                    <span class="category-name">Alt Coins</span>
+                                    <span class="category-count" id="altcoins-count">0</span>
+                                    <svg class="category-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="category-tokens collapsed" id="altcoins-tokens">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Memecoins Category -->
+                            <div class="token-category">
+                                <div class="category-header" onclick="toggleCategory('memecoins')">
+                                    <span class="category-icon">🐸</span>
+                                    <span class="category-name">Meme Coins</span>
+                                    <span class="category-count" id="memecoins-count">0</span>
+                                    <svg class="category-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                </div>
+                                <div class="category-tokens collapsed" id="memecoins-tokens">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="selected-tokens-summary">
+                            <span class="summary-label">Selected:</span>
+                            <div class="selected-tokens-list" id="selected-tokens-list">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Line 4: Monitored Tokens -->
-                <div class="setting-group">
-                    <label for="tokens-input">Monitored Tokens (comma-separated)</label>
-                    <textarea id="tokens-input" class="setting-input" rows="2" placeholder="ETH, BTC, SOL, AAVE, FARTCOIN, LINK, LTC"></textarea>
+                <!-- MODELS Tab Content -->
+                <div id="tab-models" class="settings-tab-content">
+                    <div class="setting-section">
+                        <h3 class="section-title">Main Model</h3>
+                        <p class="section-desc">Used for single agent mode and to summarize swarm results</p>
+
+                        <div class="model-config main-model-config">
+                            <div class="setting-row">
+                                <div class="setting-group half">
+                                    <label for="main-provider-select">Provider</label>
+                                    <select id="main-provider-select" class="setting-input" onchange="updateMainModelOptions()">
+                                        <!-- Populated by JS -->
+                                    </select>
+                                </div>
+                                <div class="setting-group half">
+                                    <label for="main-model-select">Model</label>
+                                    <select id="main-model-select" class="setting-input">
+                                        <!-- Populated by JS -->
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-group half">
+                                    <label for="main-temperature">Temperature</label>
+                                    <div class="slider-container">
+                                        <input type="range" id="main-temperature" class="setting-slider" min="0" max="100" value="30" oninput="updateSliderValue('main-temperature', 'main-temp-value')" />
+                                        <span class="slider-value" id="main-temp-value">0.3</span>
+                                    </div>
+                                </div>
+                                <div class="setting-group half">
+                                    <label for="main-max-tokens">Max Tokens</label>
+                                    <input type="number" id="main-max-tokens" class="setting-input" min="100" max="100000" value="2000" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="setting-section swarm-models-section" id="swarm-models-section">
+                        <div class="section-header">
+                            <h3 class="section-title">Swarm Models</h3>
+                            <button class="btn-add-model" onclick="addSwarmModel()" id="add-model-btn">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Add Model
+                            </button>
+                        </div>
+                        <p class="section-desc">Configure 1-6 AI models for swarm consensus (only active in Swarm mode)</p>
+
+                        <div class="swarm-models-list" id="swarm-models-list">
+                            <!-- Swarm models populated by JS -->
+                        </div>
+                    </div>
                 </div>
 
-                <div class="setting-group">
-                    <button class="btn btn-run" style="width: 100%;" onclick="saveSettings()">Save Settings</button>
+                <!-- Save Button (visible on all tabs) -->
+                <div class="settings-footer">
+                    <div class="validation-message" id="settings-validation"></div>
+                    <button class="btn btn-run" onclick="saveSettings()">Save Settings</button>
                 </div>
-
-                <!-- Internal Notes for Future Development -->
-                <!--
-                TODO: Future Features to Add
-
-                AI SETTINGS SECTION:
-                - Add input fields for users to manage their own API keys:
-                  * ANTHROPIC_KEY (Claude API key)
-                  * OPENAI_KEY (OpenAI API key)
-                  * GEMINI_KEY (Google Gemini API key)
-                  * GROQ_API_KEY (Groq API key)
-                  * DEEPSEEK_KEY (DeepSeek API key)
-                - Store keys securely (encrypted in database or environment)
-                - Validate keys before saving
-                - Show masked keys in UI (e.g., "sk-...xyz123")
-
-                USER SETTINGS SECTION:
-                - Allow users to update their credentials:
-                  * Username field (with validation)
-                  * Email field (with email validation)
-                  * Password field (with strength requirements)
-                  * Confirm Password field
-                - Add user avatar upload:
-                  * Image upload button
-                  * Preview uploaded image
-                  * Crop/resize functionality
-                  * Store in /static/avatars/ or cloud storage
-                  * Default avatar if none uploaded
-                - Add "Update Profile" button
-                - Show success/error messages after update
-                -->
             </div>
         </div>
     </div>

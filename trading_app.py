@@ -37,7 +37,9 @@ from src.utils.settings_manager import (
     load_settings,
     save_settings,
     validate_settings,
-    get_available_models_for_provider
+    get_available_models_for_provider,
+    get_hyperliquid_tokens,
+    get_all_token_symbols
 )
 
 # Load environment variables
@@ -618,20 +620,28 @@ def run_trading_agent():
 
     # Load user settings
     user_settings = load_settings()
-    add_console_log(f"Loaded settings: {user_settings.get('timeframe')} timeframe, {user_settings.get('days_back')} days, {user_settings.get('sleep_minutes')} min cycle", "info")
+
+    # Get monitored tokens from settings (use user's selection, not hardcoded)
+    monitored_tokens = user_settings.get('monitored_tokens', ['ETH', 'BTC', 'SOL'])
+    swarm_mode = user_settings.get('swarm_mode', 'single')
+    mode_display = 'Swarm' if swarm_mode == 'swarm' else 'Single Agent'
+
+    add_console_log(f"Settings: {user_settings.get('timeframe')} timeframe, {user_settings.get('days_back')} days, {user_settings.get('sleep_minutes')} min cycle", "info")
+    add_console_log(f"Mode: {mode_display} | Tokens: {', '.join(monitored_tokens)}", "info")
+    add_console_log(f"AI Model: {user_settings.get('ai_provider')}/{user_settings.get('ai_model')}", "info")
 
     # Import trading agent at the top of the function
     try:
-        from src.agents.trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS
+        from src.agents.trading_agent import TradingAgent, EXCHANGE
         trading_agent_module = "src.agents.trading_agent"
     except ImportError:
         try:
-            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS
+            from trading_agent import TradingAgent, EXCHANGE
             trading_agent_module = "trading_agent"
         except ImportError:
             import sys
             sys.path.insert(0, str(BASE_DIR / "src" / "agents"))
-            from trading_agent import TradingAgent, EXCHANGE, SYMBOLS, MONITORED_TOKENS
+            from trading_agent import TradingAgent, EXCHANGE
             trading_agent_module = "trading_agent (sys.path)"
 
     add_console_log("Loaded trading_agent", "info")
@@ -654,19 +664,21 @@ def run_trading_agent():
 
             # Reload settings in case they changed
             user_settings = load_settings()
+            monitored_tokens = user_settings.get('monitored_tokens', ['ETH', 'BTC', 'SOL'])
 
             # Create agent instance with user settings and stop callback
             agent = TradingAgent(
                 timeframe=user_settings.get('timeframe', '30m'),
                 days_back=user_settings.get('days_back', 2),
-                stop_check_callback=should_stop_agent
+                stop_check_callback=should_stop_agent,
+                # Pass user-selected tokens to the agent
+                symbols=monitored_tokens,
+                # Pass AI settings
+                ai_provider=user_settings.get('ai_provider', 'gemini'),
+                ai_model=user_settings.get('ai_model', 'gemini-2.5-flash'),
+                ai_temperature=user_settings.get('ai_temperature', 0.3),
+                ai_max_tokens=user_settings.get('ai_max_tokens', 2000)
             )
-
-            # Get tokens list based on exchange
-            if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-                tokens = SYMBOLS
-            else:
-                tokens = MONITORED_TOKENS
 
             # Set executing flag to True (agent is now actively analyzing)
             with state_lock:
@@ -698,7 +710,7 @@ def run_trading_agent():
                 add_console_log(f"Signals: {buy_count} BUY, {sell_count} SELL, {nothing_count} HOLD", "trade")
 
             # Wait before next cycle
-            add_console_log("✅ Finished trading cycle", "info")
+            add_console_log("Finished trading cycle", "info")
             add_console_log(f"Next cycle starts in {user_settings.get('sleep_minutes', 30)} minutes", "info")
 
             # Use Event.wait() instead of blocking sleep for responsive shutdown
@@ -1073,6 +1085,32 @@ def get_ai_models():
 
     except Exception as e:
         print(f"❌ Error getting AI models: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+@app.route('/api/tokens', methods=['GET'])
+@login_required
+def get_tokens():
+    """
+    Get available Hyperliquid tokens organized by category
+    Returns categorized tokens (crypto, altcoins, memecoins)
+    """
+    try:
+        tokens = get_hyperliquid_tokens()
+        all_symbols = get_all_token_symbols()
+
+        return jsonify({
+            'success': True,
+            'categories': tokens,
+            'all_symbols': all_symbols,
+            'total_count': len(all_symbols)
+        })
+
+    except Exception as e:
+        print(f"❌ Error getting tokens: {e}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'

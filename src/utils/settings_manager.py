@@ -12,18 +12,99 @@ from datetime import datetime
 # Settings file location
 SETTINGS_FILE = Path(__file__).parent.parent / "data" / "user_settings.json"
 
+# Hyperliquid available tokens (categorized)
+HYPERLIQUID_TOKENS = {
+    "crypto": [
+        {"symbol": "BTC", "name": "Bitcoin"},
+        {"symbol": "ETH", "name": "Ethereum"},
+        {"symbol": "SOL", "name": "Solana"},
+    ],
+    "altcoins": [
+        {"symbol": "LTC", "name": "Litecoin"},
+        {"symbol": "AAVE", "name": "Aave"},
+        {"symbol": "LINK", "name": "Chainlink"},
+        {"symbol": "AVAX", "name": "Avalanche"},
+        {"symbol": "MATIC", "name": "Polygon"},
+        {"symbol": "ARB", "name": "Arbitrum"},
+        {"symbol": "OP", "name": "Optimism"},
+        {"symbol": "ATOM", "name": "Cosmos"},
+        {"symbol": "DOT", "name": "Polkadot"},
+        {"symbol": "UNI", "name": "Uniswap"},
+        {"symbol": "CRV", "name": "Curve"},
+        {"symbol": "MKR", "name": "Maker"},
+        {"symbol": "SNX", "name": "Synthetix"},
+        {"symbol": "COMP", "name": "Compound"},
+        {"symbol": "SUSHI", "name": "SushiSwap"},
+        {"symbol": "INJ", "name": "Injective"},
+        {"symbol": "TIA", "name": "Celestia"},
+        {"symbol": "SEI", "name": "Sei"},
+        {"symbol": "SUI", "name": "Sui"},
+        {"symbol": "APT", "name": "Aptos"},
+        {"symbol": "NEAR", "name": "NEAR Protocol"},
+        {"symbol": "FTM", "name": "Fantom"},
+        {"symbol": "HYPE", "name": "Hyperliquid"},
+        {"symbol": "DYDX", "name": "dYdX"},
+        {"symbol": "GMX", "name": "GMX"},
+        {"symbol": "BLUR", "name": "Blur"},
+        {"symbol": "LDO", "name": "Lido"},
+        {"symbol": "FXS", "name": "Frax Share"},
+        {"symbol": "RPL", "name": "Rocket Pool"},
+        {"symbol": "PENDLE", "name": "Pendle"},
+        {"symbol": "STX", "name": "Stacks"},
+        {"symbol": "RUNE", "name": "THORChain"},
+        {"symbol": "ORDI", "name": "ORDI"},
+        {"symbol": "W", "name": "Wormhole"},
+        {"symbol": "JUP", "name": "Jupiter"},
+        {"symbol": "PYTH", "name": "Pyth Network"},
+        {"symbol": "JTO", "name": "Jito"},
+        {"symbol": "WIF", "name": "dogwifhat"},
+    ],
+    "memecoins": [
+        {"symbol": "DOGE", "name": "Dogecoin"},
+        {"symbol": "SHIB", "name": "Shiba Inu"},
+        {"symbol": "PEPE", "name": "Pepe"},
+        {"symbol": "FARTCOIN", "name": "FartCoin"},
+        {"symbol": "BONK", "name": "Bonk"},
+        {"symbol": "FLOKI", "name": "Floki"},
+        {"symbol": "MEME", "name": "Memecoin"},
+        {"symbol": "WEN", "name": "Wen"},
+        {"symbol": "MYRO", "name": "Myro"},
+        {"symbol": "MEW", "name": "Cat in a dogs world"},
+        {"symbol": "POPCAT", "name": "Popcat"},
+        {"symbol": "GOAT", "name": "Goatseus Maximus"},
+        {"symbol": "PNUT", "name": "Peanut the Squirrel"},
+        {"symbol": "NEIRO", "name": "Neiro"},
+        {"symbol": "TURBO", "name": "Turbo"},
+        {"symbol": "BRETT", "name": "Brett"},
+        {"symbol": "MOG", "name": "Mog Coin"},
+        {"symbol": "GIGA", "name": "GigaChad"},
+    ]
+}
+
 # Default settings
 DEFAULT_SETTINGS = {
-    # Trading cycle settings
+    # Chart settings
     "timeframe": "30m",           # Default: 30 minutes
     "days_back": 2,               # Default: 2 days
-    "sleep_minutes": 30,          # Default: 30 minutes between cycles
+    "sleep_minutes": 30,          # Default: 30 minutes between cycles (cycle time)
 
-    # AI Model settings (BYOK - Bring Your Own Key)
+    # Mode settings
+    "swarm_mode": "single",       # Default: single (options: single, swarm)
+
+    # Token settings
+    "monitored_tokens": ["ETH", "BTC", "SOL"],  # Default tokens to monitor
+
+    # Main AI Model settings (BYOK - Bring Your Own Key)
     "ai_provider": "gemini",      # Default: gemini (options: anthropic, openai, gemini, deepseek, xai, mistral, cohere, ollama)
     "ai_model": "gemini-2.5-flash",  # Default model API name
     "ai_temperature": 0.3,        # Default: 0.3 (0.0 = deterministic, 1.0 = creative)
     "ai_max_tokens": 2000,        # Default: 2000 tokens
+
+    # Swarm AI Model settings (for multi-agent mode)
+    "swarm_models": [
+        # Each model has provider, model, temperature, max_tokens
+        {"provider": "gemini", "model": "gemini-2.5-flash", "temperature": 0.3, "max_tokens": 2000},
+    ],
 
     # Timestamp
     "last_updated": None
@@ -198,6 +279,61 @@ def validate_ai_max_tokens(max_tokens):
         return False
 
 
+def get_hyperliquid_tokens():
+    """Get all available Hyperliquid tokens organized by category"""
+    return HYPERLIQUID_TOKENS
+
+
+def get_all_token_symbols():
+    """Get a flat list of all available token symbols"""
+    symbols = []
+    for category, tokens in HYPERLIQUID_TOKENS.items():
+        symbols.extend([t["symbol"] for t in tokens])
+    return symbols
+
+
+def validate_tokens(tokens):
+    """Validate that all tokens are valid Hyperliquid tokens"""
+    if not isinstance(tokens, list):
+        return False
+    valid_symbols = get_all_token_symbols()
+    return all(token in valid_symbols for token in tokens)
+
+
+def validate_swarm_mode(mode):
+    """Validate swarm mode"""
+    return mode in ['single', 'swarm']
+
+
+def validate_swarm_models(models):
+    """Validate swarm models configuration"""
+    if not isinstance(models, list):
+        return False, "swarm_models must be a list"
+
+    if len(models) < 1 or len(models) > 6:
+        return False, "swarm_models must have 1-6 models"
+
+    for i, model in enumerate(models):
+        if not isinstance(model, dict):
+            return False, f"Swarm model {i+1} must be an object"
+
+        required_fields = ['provider', 'model', 'temperature', 'max_tokens']
+        for field in required_fields:
+            if field not in model:
+                return False, f"Swarm model {i+1} missing field: {field}"
+
+        if not validate_ai_provider(model['provider']):
+            return False, f"Swarm model {i+1} has invalid provider: {model['provider']}"
+
+        if not validate_ai_temperature(model['temperature']):
+            return False, f"Swarm model {i+1} has invalid temperature"
+
+        if not validate_ai_max_tokens(model['max_tokens']):
+            return False, f"Swarm model {i+1} has invalid max_tokens"
+
+    return True, None
+
+
 def validate_settings(settings):
     """Validate settings dictionary"""
     errors = []
@@ -224,6 +360,18 @@ def validate_settings(settings):
         except (ValueError, TypeError):
             errors.append("sleep_minutes must be a number")
 
+    # Validate swarm_mode
+    if "swarm_mode" in settings and not validate_swarm_mode(settings["swarm_mode"]):
+        errors.append(f"Invalid swarm mode: {settings['swarm_mode']}")
+
+    # Validate monitored_tokens
+    if "monitored_tokens" in settings:
+        if not isinstance(settings["monitored_tokens"], list):
+            errors.append("monitored_tokens must be a list")
+        elif len(settings["monitored_tokens"]) == 0:
+            errors.append("monitored_tokens must have at least one token")
+        # Note: We allow any tokens now since users might have custom needs
+
     # Validate AI provider
     if "ai_provider" in settings and not validate_ai_provider(settings["ai_provider"]):
         errors.append(f"Invalid AI provider: {settings['ai_provider']}")
@@ -235,5 +383,11 @@ def validate_settings(settings):
     # Validate AI max tokens
     if "ai_max_tokens" in settings and not validate_ai_max_tokens(settings["ai_max_tokens"]):
         errors.append("ai_max_tokens must be between 100 and 100000")
+
+    # Validate swarm_models if present
+    if "swarm_models" in settings:
+        valid, error = validate_swarm_models(settings["swarm_models"])
+        if not valid:
+            errors.append(error)
 
     return len(errors) == 0, errors

@@ -482,6 +482,13 @@ window.addEventListener('beforeunload', () => {
 // SETTINGS MODAL
 // ============================================================================
 
+// Global state for settings
+let availableTokens = {};
+let selectedTokens = [];
+let availableProviders = [];
+let availableModels = {};
+let swarmModels = [];
+
 function openSettings() {
     document.getElementById('settings-modal').classList.add('show');
     loadSettings();
@@ -493,72 +500,427 @@ function closeSettings(event) {
     }
 }
 
-function loadSettings() {
-    // Load settings from localStorage
-    const exchange = localStorage.getItem('exchange') || 'HYPERLIQUID';
-    const tokens = localStorage.getItem('tokens') || 'ETH, BTC, SOL, AAVE, LINK, LTC, FARTCOIN';
-    const timeframe = localStorage.getItem('timeframe') || '15m';
-    const daysBack = localStorage.getItem('days_back') || '3';
-    const aiProvider = localStorage.getItem('ai_provider') || 'anthropic';
-    const model = localStorage.getItem('ai_model') || 'claude-3-haiku-20240307';
-    const swarmMode = localStorage.getItem('swarm_mode') || 'single';
+// Tab switching
+function switchSettingsTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
 
-    document.getElementById('exchange-select').value = exchange;
-    document.getElementById('tokens-input').value = tokens;
-    document.getElementById('timeframe-select').value = timeframe;
-    document.getElementById('days-back-select').value = daysBack;
-    document.getElementById('ai-provider-select').value = aiProvider;
-    document.getElementById('swarm-mode-select').value = swarmMode;
-
-    // Update model options based on provider
-    updateModelOptions();
-    document.getElementById('model-select').value = model;
+    // Update tab content
+    document.querySelectorAll('.settings-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `tab-${tabName}`);
+    });
 }
 
+// Load all settings from API
+async function loadSettings() {
+    try {
+        // Load settings, tokens, and models in parallel
+        const [settingsRes, tokensRes, modelsRes] = await Promise.all([
+            fetch('/api/settings'),
+            fetch('/api/tokens'),
+            fetch('/api/ai-models')
+        ]);
+
+        const settingsData = await settingsRes.json();
+        const tokensData = await tokensRes.json();
+        const modelsData = await modelsRes.json();
+
+        // Store available data
+        if (tokensData.success) {
+            availableTokens = tokensData.categories;
+            populateTokenCategories();
+        }
+
+        if (modelsData.success) {
+            availableProviders = modelsData.providers;
+            availableModels = modelsData.models;
+            populateProviderDropdowns();
+        }
+
+        // Apply settings
+        if (settingsData.success) {
+            applySettings(settingsData.settings);
+        }
+
+    } catch (error) {
+        console.error('Error loading settings:', error);
+        showValidationMessage('Failed to load settings', 'error');
+    }
+}
+
+// Apply settings to UI
+function applySettings(settings) {
+    // Chart settings
+    document.getElementById('timeframe-select').value = settings.timeframe || '30m';
+    document.getElementById('days-back-select').value = settings.days_back || 2;
+    document.getElementById('cycle-time-input').value = settings.sleep_minutes || 30;
+
+    // Mode settings
+    const swarmMode = settings.swarm_mode || 'single';
+    document.querySelector(`input[name="swarm-mode"][value="${swarmMode}"]`).checked = true;
+    updateSwarmModelsVisibility();
+
+    // Token settings
+    selectedTokens = settings.monitored_tokens || ['ETH', 'BTC', 'SOL'];
+    updateTokenSelection();
+
+    // Main model settings
+    if (settings.ai_provider) {
+        document.getElementById('main-provider-select').value = settings.ai_provider;
+        updateMainModelOptions();
+    }
+    if (settings.ai_model) {
+        document.getElementById('main-model-select').value = settings.ai_model;
+    }
+
+    // Temperature and max tokens
+    const tempValue = Math.round((settings.ai_temperature || 0.3) * 100);
+    document.getElementById('main-temperature').value = tempValue;
+    updateSliderValue('main-temperature', 'main-temp-value');
+
+    document.getElementById('main-max-tokens').value = settings.ai_max_tokens || 2000;
+
+    // Swarm models
+    swarmModels = settings.swarm_models || [
+        { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3, max_tokens: 2000 }
+    ];
+    renderSwarmModels();
+}
+
+// Populate token categories
+function populateTokenCategories() {
+    const categories = ['crypto', 'altcoins', 'memecoins'];
+
+    categories.forEach(category => {
+        const container = document.getElementById(`${category}-tokens`);
+        const tokens = availableTokens[category] || [];
+
+        container.innerHTML = tokens.map(token => `
+            <div class="token-chip" data-symbol="${token.symbol}" onclick="toggleToken('${token.symbol}')">
+                <span class="token-symbol">${token.symbol}</span>
+            </div>
+        `).join('');
+    });
+}
+
+// Toggle category expand/collapse
+function toggleCategory(category) {
+    const tokensContainer = document.getElementById(`${category}-tokens`);
+    tokensContainer.classList.toggle('collapsed');
+
+    // Update arrow rotation
+    const header = tokensContainer.previousElementSibling;
+    const arrow = header.querySelector('.category-arrow');
+    arrow.style.transform = tokensContainer.classList.contains('collapsed') ? 'rotate(-90deg)' : '';
+}
+
+// Toggle token selection
+function toggleToken(symbol) {
+    const index = selectedTokens.indexOf(symbol);
+    if (index === -1) {
+        selectedTokens.push(symbol);
+    } else {
+        selectedTokens.splice(index, 1);
+    }
+    updateTokenSelection();
+}
+
+// Remove token from selection
+function removeToken(symbol) {
+    const index = selectedTokens.indexOf(symbol);
+    if (index !== -1) {
+        selectedTokens.splice(index, 1);
+        updateTokenSelection();
+    }
+}
+
+// Update token selection UI
+function updateTokenSelection() {
+    // Update chips
+    document.querySelectorAll('.token-chip').forEach(chip => {
+        const symbol = chip.dataset.symbol;
+        chip.classList.toggle('selected', selectedTokens.includes(symbol));
+    });
+
+    // Update category counts
+    const categories = ['crypto', 'altcoins', 'memecoins'];
+    categories.forEach(category => {
+        const tokens = availableTokens[category] || [];
+        const count = tokens.filter(t => selectedTokens.includes(t.symbol)).length;
+        document.getElementById(`${category}-count`).textContent = count;
+    });
+
+    // Update selected tokens summary
+    const summaryContainer = document.getElementById('selected-tokens-list');
+    if (selectedTokens.length === 0) {
+        summaryContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No tokens selected</span>';
+    } else {
+        summaryContainer.innerHTML = selectedTokens.map(symbol => `
+            <div class="selected-token">
+                ${symbol}
+                <span class="remove-token" onclick="removeToken('${symbol}')">&times;</span>
+            </div>
+        `).join('');
+    }
+}
+
+// Populate provider dropdowns
+function populateProviderDropdowns() {
+    const mainProviderSelect = document.getElementById('main-provider-select');
+
+    mainProviderSelect.innerHTML = availableProviders.map(provider => {
+        const displayName = getProviderDisplayName(provider);
+        return `<option value="${provider}">${displayName}</option>`;
+    }).join('');
+
+    // Set default and update models
+    updateMainModelOptions();
+}
+
+// Get display name for provider
+function getProviderDisplayName(provider) {
+    const names = {
+        'anthropic': 'Anthropic (Claude)',
+        'openai': 'OpenAI',
+        'gemini': 'Google Gemini',
+        'deepseek': 'DeepSeek',
+        'xai': 'xAI (Grok)',
+        'mistral': 'Mistral AI',
+        'cohere': 'Cohere',
+        'perplexity': 'Perplexity',
+        'groq': 'Groq',
+        'ollama': 'Ollama (Local)',
+        'openrouter': 'OpenRouter'
+    };
+    return names[provider] || provider;
+}
+
+// Update main model dropdown based on provider
+function updateMainModelOptions() {
+    const provider = document.getElementById('main-provider-select').value;
+    const modelSelect = document.getElementById('main-model-select');
+    const models = availableModels[provider] || {};
+
+    modelSelect.innerHTML = Object.entries(models).map(([modelId, description]) => {
+        return `<option value="${modelId}">${description}</option>`;
+    }).join('');
+}
+
+// Update slider value display
+function updateSliderValue(sliderId, displayId) {
+    const slider = document.getElementById(sliderId);
+    const display = document.getElementById(displayId);
+    display.textContent = (slider.value / 100).toFixed(1);
+}
+
+// Update swarm models section visibility
+function updateSwarmModelsVisibility() {
+    const swarmMode = document.querySelector('input[name="swarm-mode"]:checked').value;
+    const swarmSection = document.getElementById('swarm-models-section');
+    swarmSection.classList.toggle('active', swarmMode === 'swarm');
+}
+
+// Listen for mode changes
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('input[name="swarm-mode"]').forEach(radio => {
+        radio.addEventListener('change', updateSwarmModelsVisibility);
+    });
+});
+
+// Render swarm models
+function renderSwarmModels() {
+    const container = document.getElementById('swarm-models-list');
+
+    container.innerHTML = swarmModels.map((model, index) => `
+        <div class="swarm-model-card" data-index="${index}">
+            <div class="swarm-model-header">
+                <span class="swarm-model-number">Model ${index + 1}</span>
+                ${swarmModels.length > 1 ? `
+                    <button class="btn-remove-model" onclick="removeSwarmModel(${index})">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                ` : ''}
+            </div>
+            <div class="setting-row">
+                <div class="setting-group half">
+                    <label>Provider</label>
+                    <select class="setting-input swarm-provider" data-index="${index}" onchange="updateSwarmModelOptions(${index})">
+                        ${availableProviders.map(p => `
+                            <option value="${p}" ${p === model.provider ? 'selected' : ''}>${getProviderDisplayName(p)}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="setting-group half">
+                    <label>Model</label>
+                    <select class="setting-input swarm-model" data-index="${index}">
+                        ${Object.entries(availableModels[model.provider] || {}).map(([id, desc]) => `
+                            <option value="${id}" ${id === model.model ? 'selected' : ''}>${desc}</option>
+                        `).join('')}
+                    </select>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-group half">
+                    <label>Temperature</label>
+                    <div class="slider-container">
+                        <input type="range" class="setting-slider swarm-temp" data-index="${index}" min="0" max="100" value="${Math.round(model.temperature * 100)}" oninput="updateSwarmSliderValue(${index})" />
+                        <span class="slider-value" id="swarm-temp-${index}">${model.temperature.toFixed(1)}</span>
+                    </div>
+                </div>
+                <div class="setting-group half">
+                    <label>Max Tokens</label>
+                    <input type="number" class="setting-input swarm-max-tokens" data-index="${index}" min="100" max="100000" value="${model.max_tokens}" />
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Update add button state
+    const addBtn = document.getElementById('add-model-btn');
+    addBtn.disabled = swarmModels.length >= 6;
+}
+
+// Update swarm model options
+function updateSwarmModelOptions(index) {
+    const providerSelect = document.querySelector(`.swarm-provider[data-index="${index}"]`);
+    const modelSelect = document.querySelector(`.swarm-model[data-index="${index}"]`);
+    const provider = providerSelect.value;
+    const models = availableModels[provider] || {};
+
+    modelSelect.innerHTML = Object.entries(models).map(([id, desc]) => `
+        <option value="${id}">${desc}</option>
+    `).join('');
+
+    // Update swarm models array
+    swarmModels[index].provider = provider;
+    swarmModels[index].model = Object.keys(models)[0] || '';
+}
+
+// Update swarm slider value
+function updateSwarmSliderValue(index) {
+    const slider = document.querySelector(`.swarm-temp[data-index="${index}"]`);
+    const display = document.getElementById(`swarm-temp-${index}`);
+    display.textContent = (slider.value / 100).toFixed(1);
+}
+
+// Add new swarm model
+function addSwarmModel() {
+    if (swarmModels.length >= 6) return;
+
+    swarmModels.push({
+        provider: 'gemini',
+        model: 'gemini-2.5-flash',
+        temperature: 0.3,
+        max_tokens: 2000
+    });
+
+    renderSwarmModels();
+}
+
+// Remove swarm model
+function removeSwarmModel(index) {
+    if (swarmModels.length <= 1) return;
+    swarmModels.splice(index, 1);
+    renderSwarmModels();
+}
+
+// Collect swarm models from UI
+function collectSwarmModels() {
+    const models = [];
+    document.querySelectorAll('.swarm-model-card').forEach((card, index) => {
+        const provider = card.querySelector('.swarm-provider').value;
+        const model = card.querySelector('.swarm-model').value;
+        const tempSlider = card.querySelector('.swarm-temp');
+        const maxTokens = card.querySelector('.swarm-max-tokens').value;
+
+        models.push({
+            provider: provider,
+            model: model,
+            temperature: parseFloat((tempSlider.value / 100).toFixed(1)),
+            max_tokens: parseInt(maxTokens)
+        });
+    });
+    return models;
+}
+
+// Show validation message
+function showValidationMessage(message, type) {
+    const el = document.getElementById('settings-validation');
+    el.textContent = message;
+    el.className = `validation-message ${type}`;
+
+    if (type === 'success') {
+        setTimeout(() => {
+            el.className = 'validation-message';
+        }, 3000);
+    }
+}
+
+// Save all settings
 async function saveSettings() {
-    const exchange = document.getElementById('exchange-select').value;
-    const tokens = document.getElementById('tokens-input').value;
-    const timeframe = document.getElementById('timeframe-select').value;
-    const daysBack = document.getElementById('days-back-select').value;
-    const aiProvider = document.getElementById('ai-provider-select').value;
-    const model = document.getElementById('model-select').value;
-    const swarmMode = document.getElementById('swarm-mode-select').value;
+    // Validate
+    if (selectedTokens.length === 0) {
+        showValidationMessage('Please select at least one token', 'error');
+        return;
+    }
 
-    // Save to localStorage
-    localStorage.setItem('exchange', exchange);
-    localStorage.setItem('tokens', tokens);
-    localStorage.setItem('timeframe', timeframe);
-    localStorage.setItem('days_back', daysBack);
-    localStorage.setItem('ai_provider', aiProvider);
-    localStorage.setItem('ai_model', model);
-    localStorage.setItem('swarm_mode', swarmMode);
+    const cycleTime = parseInt(document.getElementById('cycle-time-input').value);
+    if (cycleTime < 1 || cycleTime > 1440) {
+        showValidationMessage('Cycle time must be between 1 and 1440 minutes', 'error');
+        return;
+    }
 
-    // Send to backend API
+    const maxTokens = parseInt(document.getElementById('main-max-tokens').value);
+    if (maxTokens < 100 || maxTokens > 100000) {
+        showValidationMessage('Max tokens must be between 100 and 100,000', 'error');
+        return;
+    }
+
+    // Collect settings
+    const settings = {
+        // Chart settings
+        timeframe: document.getElementById('timeframe-select').value,
+        days_back: parseInt(document.getElementById('days-back-select').value),
+        sleep_minutes: cycleTime,
+
+        // Mode settings
+        swarm_mode: document.querySelector('input[name="swarm-mode"]:checked').value,
+
+        // Token settings
+        monitored_tokens: selectedTokens,
+
+        // Main AI model settings
+        ai_provider: document.getElementById('main-provider-select').value,
+        ai_model: document.getElementById('main-model-select').value,
+        ai_temperature: parseFloat((document.getElementById('main-temperature').value / 100).toFixed(1)),
+        ai_max_tokens: maxTokens,
+
+        // Swarm models
+        swarm_models: collectSwarmModels()
+    };
+
     try {
         const response = await fetch('/api/settings', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                exchange: exchange,
-                tokens: tokens.split(',').map(t => t.trim()),
-                timeframe: timeframe,
-                days_back: parseInt(daysBack),
-                ai_provider: aiProvider,
-                ai_model: model,
-                swarm_mode: swarmMode
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
         });
 
         const data = await response.json();
-        addConsoleMessage('Settings saved successfully', 'success');
+
+        if (data.success) {
+            showValidationMessage('Settings saved successfully', 'success');
+            addConsoleMessage('Settings saved successfully', 'success');
+            setTimeout(() => closeSettings(), 1500);
+        } else {
+            showValidationMessage(data.message || 'Failed to save settings', 'error');
+        }
     } catch (error) {
         console.error('Error saving settings:', error);
-        addConsoleMessage('Settings saved locally (backend update failed)', 'warning');
+        showValidationMessage('Failed to save settings', 'error');
     }
-
-    closeSettings();
 }
 
 // ============================================================================
@@ -788,56 +1150,6 @@ function closeAccountModal(event) {
     if (!event || event.target.id === 'account-modal' || event.target.classList.contains('modal-close')) {
         document.getElementById('account-modal').classList.remove('show');
     }
-}
-
-// ============================================================================
-// MODEL OPTIONS UPDATE
-// ============================================================================
-
-function updateModelOptions() {
-    const provider = document.getElementById('ai-provider-select').value;
-    const modelSelect = document.getElementById('model-select');
-
-    // Define models for each provider
-    const models = {
-        'anthropic': [
-            { value: 'claude-3-haiku-20240307', text: 'Claude 3 Haiku' },
-            { value: 'claude-3-sonnet-20240229', text: 'Claude 3 Sonnet' },
-            { value: 'claude-3-opus-20240229', text: 'Claude 3 Opus' }
-        ],
-        'openai': [
-            { value: 'gpt-4', text: 'GPT-4' },
-            { value: 'gpt-4-turbo', text: 'GPT-4 Turbo' },
-            { value: 'gpt-3.5-turbo', text: 'GPT-3.5 Turbo' }
-        ],
-        'deepseek': [
-            { value: 'deepseek-chat', text: 'DeepSeek Chat' },
-            { value: 'deepseek-coder', text: 'DeepSeek Coder' }
-        ],
-        'groq': [
-            { value: 'llama3-70b-8192', text: 'Llama 3 70B' },
-            { value: 'mixtral-8x7b-32768', text: 'Mixtral 8x7B' }
-        ],
-        'gemini': [
-            { value: 'gemini-pro', text: 'Gemini Pro' },
-            { value: 'gemini-pro-vision', text: 'Gemini Pro Vision' }
-        ],
-        'ollama': [
-            { value: 'llama2', text: 'Llama 2' },
-            { value: 'mistral', text: 'Mistral' },
-            { value: 'codellama', text: 'Code Llama' }
-        ]
-    };
-
-    // Clear and populate model select
-    modelSelect.innerHTML = '';
-    const providerModels = models[provider] || [];
-    providerModels.forEach(model => {
-        const option = document.createElement('option');
-        option.value = model.value;
-        option.textContent = model.text;
-        modelSelect.appendChild(option);
-    });
 }
 
 console.log('✅ Dashboard ready');
