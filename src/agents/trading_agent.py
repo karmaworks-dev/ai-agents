@@ -179,7 +179,8 @@ slippage = 199
 SLEEP_BETWEEN_RUNS_MINUTES = 60  
 
 # 🎯 TOKEN CONFIGURATION
-address = "ACCOUNT_ADDRESS" 
+# Note: Account address is loaded from .env via os.getenv("ACCOUNT_ADDRESS")
+# or from self.account.address in TradingAgent.__init__()
 
 # For SOLANA exchange
 USDC_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" 
@@ -1141,14 +1142,16 @@ Trading Recommendations (BUY signals only):
                 k: float(v) for k, v in allocations.items()
                 if isinstance(v, (int, float, str)) and str(v).replace('.', '', 1).isdigit()
             }
-            total_margin = sum(valid_allocations.values())
+            # CRITICAL FIX: Exclude USDC cash buffer from total_margin calculation
+            total_margin = sum(v for k, v in valid_allocations.items() if k != USDC_ADDRESS)
             target_margin = account_balance * (MAX_POSITION_PERCENTAGE / 100)
-            
-            # Scale allocations to use 90% of equity
+
+            # Scale allocations to use 90% of equity (excluding USDC cash buffer)
             if total_margin > 0:
                 scale_factor = target_margin / total_margin
                 for k in valid_allocations.keys():
-                    valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
+                    if k != USDC_ADDRESS:  # Don't scale USDC cash buffer
+                        valid_allocations[k] = round(valid_allocations[k] * scale_factor, 2)
             
             # Enforce minimum trade size (≥ $12 notional)
             min_margin = 12 / LEVERAGE

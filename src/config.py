@@ -19,7 +19,7 @@ EXCLUDED_TOKENS = [USDC_ADDRESS, SOL_ADDRESS]
 # ⚡ HyperLiquid Configuration
 # We will trade SOL for the test because it has good volatility
 HYPERLIQUID_SYMBOLS = ['SOL'] 
-HYPERLIQUID_LEVERAGE = 5  # Essential for small accounts. 5x Leverage on $12 size = ~$2.40 margin.
+HYPERLIQUID_LEVERAGE = 20  # Current leverage setting (matches trading_agent.py)
 
 # Position sizing 🎯
 # CRITICAL FOR $10 ACCOUNT:

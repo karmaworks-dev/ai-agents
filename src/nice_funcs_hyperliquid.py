@@ -48,7 +48,7 @@ except ImportError:
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-DEFAULT_LEVERAGE = 5  # Change this to adjust leverage globally (1-50x on HyperLiquid)
+DEFAULT_LEVERAGE = 20  # Change this to adjust leverage globally (1-50x on HyperLiquid)
                       # Higher leverage = less margin required, but higher liquidation risk
                       # Examples:
                       # - 5x: $25 position needs $5 margin
@@ -81,15 +81,35 @@ def ask_bid(symbol):
         'coin': symbol
     }
 
-    response = requests.post(url, headers=headers, data=json.dumps(data))
-    l2_data = response.json()
-    l2_data = l2_data['levels']
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(data))
 
-    # get bid and ask
-    bid = float(l2_data[0][0]['px'])
-    ask = float(l2_data[1][0]['px'])
+        # Validate HTTP response
+        if response.status_code != 200:
+            raise Exception(f"API returned status code {response.status_code}")
 
-    return ask, bid, l2_data
+        l2_data = response.json()
+
+        # Validate response structure
+        if 'levels' not in l2_data:
+            raise Exception(f"Invalid API response: missing 'levels' key")
+
+        levels = l2_data['levels']
+
+        # Validate levels structure
+        if len(levels) < 2 or len(levels[0]) == 0 or len(levels[1]) == 0:
+            raise Exception(f"Invalid order book structure for {symbol}")
+
+        # get bid and ask
+        bid = float(levels[0][0]['px'])
+        ask = float(levels[1][0]['px'])
+
+        return ask, bid, levels
+
+    except Exception as e:
+        print(f"❌ Error getting ask/bid for {symbol}: {e}")
+        # Return safe fallback values (will cause calling code to fail safely)
+        raise
 
 def get_sz_px_decimals(symbol):
     """Get size and price decimals for a symbol"""
@@ -471,14 +491,20 @@ def market_buy(symbol, usd_size, account, slippage=None):
     exchange = Exchange(account, constants.MAINNET_API_URL)
     order_result = exchange.order(symbol, True, pos_size, buy_price, {"limit": {"tif": "Ioc"}}, reduce_only=False)
 
-    print(colored(f'✅ Market buy executed: {pos_size} {symbol} at ${buy_price}', 'green'))
-    # Log to dashboard
-    try:
-        position_value = pos_size * buy_price
-        add_console_log(f"📈 LONG {symbol} for ${position_value:.2f}", "trade")
-    except Exception:
-        pass
-    
+    # Validate order result
+    if order_result and order_result.get('status') == 'ok':
+        print(colored(f'✅ Market buy executed: {pos_size} {symbol} at ${buy_price}', 'green'))
+        # Log to dashboard
+        try:
+            position_value = pos_size * buy_price
+            add_console_log(f"📈 LONG {symbol} for ${position_value:.2f}", "trade")
+        except Exception:
+            pass
+    else:
+        error_msg = order_result.get('response', {}).get('error', 'Unknown error') if order_result else 'No response'
+        print(colored(f'❌ Market buy failed: {error_msg}', 'red'))
+        raise Exception(f"Order failed: {error_msg}")
+
     return order_result
 
 def market_sell(symbol, usd_size, account, slippage=None):
@@ -518,13 +544,19 @@ def market_sell(symbol, usd_size, account, slippage=None):
     exchange = Exchange(account, constants.MAINNET_API_URL)
     order_result = exchange.order(symbol, False, pos_size, sell_price, {"limit": {"tif": "Ioc"}}, reduce_only=False)
 
-    print(colored(f'✅ Market sell executed: {pos_size} {symbol} at ${sell_price}', 'red'))
-    try:
-        position_value = pos_size * sell_price
-        add_console_log(f"📉 SHORT {symbol} for ${position_value:.2f}", "trade")
-    except Exception:
-        pass
-    
+    # Validate order result
+    if order_result and order_result.get('status') == 'ok':
+        print(colored(f'✅ Market sell executed: {pos_size} {symbol} at ${sell_price}', 'red'))
+        try:
+            position_value = pos_size * sell_price
+            add_console_log(f"📉 SHORT {symbol} for ${position_value:.2f}", "trade")
+        except Exception:
+            pass
+    else:
+        error_msg = order_result.get('response', {}).get('error', 'Unknown error') if order_result else 'No response'
+        print(colored(f'❌ Market sell failed: {error_msg}', 'red'))
+        raise Exception(f"Order failed: {error_msg}")
+
     return order_result
 
 def close_position(symbol, account):
@@ -1143,16 +1175,19 @@ def close_complete_position(symbol, account, slippage=0.01):
 
     # 2. Execute Opposing Order
     try:
+        # CRITICAL FIX: Convert pos_size (in COINS) to USD amount
+        # market_buy/market_sell expect USD amounts, not coin amounts
+        current_price = get_current_price(symbol)
+        usd_amount = abs(pos_size) * current_price
+
         if is_long:
             # We are LONG, so we MARKET SELL to close
-            print(f"   Selling {pos_size} {symbol} to close LONG...")
-            # Assuming market_sell exists in your file, else use exchange.market_order
-            # If you don't have market_sell, use limit_sell with aggressive price
-            market_sell(symbol, pos_size, slippage=slippage, account=account)
+            print(f"   Selling {pos_size} {symbol} (${usd_amount:.2f}) to close LONG...")
+            market_sell(symbol, usd_amount, slippage=slippage, account=account)
         else:
             # We are SHORT, so we MARKET BUY to close
-            print(f"   Buying {pos_size} {symbol} to close SHORT...")
-            market_buy(symbol, pos_size, slippage=slippage, account=account)
+            print(f"   Buying {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close SHORT...")
+            market_buy(symbol, usd_amount, slippage=slippage, account=account)
             
         print(f'{colored("✅ Position closed successfully!", "green")}')
 
