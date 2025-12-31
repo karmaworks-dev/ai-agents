@@ -64,6 +64,59 @@ except ImportError:
         emoji = "📈" if side == "LONG" else "📉"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {emoji} Opened {side} {symbol} ${size_usd:.2f}")
 
+# Import position tracker for age-based decisions
+try:
+    from src.utils.position_tracker import (
+        record_position_entry, remove_position, get_position_age_hours,
+        get_all_tracked_positions, sync_with_exchange_positions
+    )
+    POSITION_TRACKER_AVAILABLE = True
+except ImportError:
+    POSITION_TRACKER_AVAILABLE = False
+    def record_position_entry(*args, **kwargs): return True
+    def remove_position(*args, **kwargs): return True
+    def get_position_age_hours(*args, **kwargs): return 0.0
+    def get_all_tracked_positions(): return {}
+    def sync_with_exchange_positions(*args, **kwargs): return (0, 0)
+
+# Import three-tier close validation system
+try:
+    from src.utils.close_validator import (
+        validate_close_decision, CloseDecision, ValidationResult,
+        format_validation_result, STOP_LOSS_THRESHOLD, PROFIT_TARGET_THRESHOLD,
+        MIN_CONFIDENCE_TO_CLOSE
+    )
+    CLOSE_VALIDATOR_AVAILABLE = True
+except ImportError:
+    CLOSE_VALIDATOR_AVAILABLE = False
+    STOP_LOSS_THRESHOLD = -2.0
+    PROFIT_TARGET_THRESHOLD = 0.5
+    MIN_CONFIDENCE_TO_CLOSE = 80
+
+# Import unified AI gateway
+try:
+    from src.utils.ai_gateway import (
+        analyze_with_ai, AIResponse, parse_ai_response,
+        format_position_prompt, format_entry_prompt
+    )
+    AI_GATEWAY_AVAILABLE = True
+except ImportError:
+    AI_GATEWAY_AVAILABLE = False
+
+# Import intelligence integrator for strategy and volume signals
+try:
+    from src.utils.intelligence_integrator import (
+        collect_all_intelligence, get_volume_intel_for_token,
+        get_strategy_signals, format_strategy_signals_for_ai,
+        format_volume_intel_for_ai, get_volume_summary
+    )
+    INTELLIGENCE_AVAILABLE = True
+except ImportError:
+    INTELLIGENCE_AVAILABLE = False
+    def collect_all_intelligence(*args, **kwargs): return {"token": "", "combined_context": ""}
+    def get_volume_intel_for_token(*args, **kwargs): return None
+    def get_volume_summary(): return ""
+
 
 # Load Environment Variables
 load_dotenv()
@@ -655,12 +708,13 @@ FULL DATASET:
             return "NOTHING", 0, f"Error calculating consensus: {str(e)}"
 
     def fetch_all_open_positions(self):
-        """Fetch all open positions across all symbols"""
+        """Fetch all open positions across all symbols with age tracking"""
         cprint("\n" + "=" * 60, "cyan")
         cprint("📊 FETCHING ALL OPEN POSITIONS", "white", "on_blue", attrs=["bold"])
         cprint("=" * 60, "cyan")
 
         all_positions = {}
+        exchange_positions = {}  # For syncing with tracker
         check_tokens = SYMBOLS if EXCHANGE in ["ASTER", "HYPERLIQUID"] else MONITORED_TOKENS
 
         for symbol in check_tokens:
@@ -670,6 +724,11 @@ FULL DATASET:
                 )
 
                 if im_in_pos and pos_size != 0:
+                    # Get position age from tracker
+                    age_hours = 0.0
+                    if POSITION_TRACKER_AVAILABLE:
+                        age_hours = get_position_age_hours(symbol)
+
                     position_data = {
                         "symbol": symbol,
                         "size": pos_size,
@@ -677,17 +736,26 @@ FULL DATASET:
                         "pnl_percent": pnl_perc,
                         "is_long": is_long,
                         "side": "LONG 🟢" if is_long else "SHORT 🔴",
-                        "age_hours": 0,
+                        "age_hours": age_hours,
+                    }
+
+                    # Store for tracker sync
+                    exchange_positions[symbol] = {
+                        "entry_price": entry_px,
+                        "size": pos_size,
+                        "is_long": is_long
                     }
 
                     if symbol not in all_positions:
                         all_positions[symbol] = []
                     all_positions[symbol].append(position_data)
 
+                    # Include age in display
+                    age_str = f"{age_hours:.1f}h" if age_hours > 0 else "NEW"
                     cprint(
                         f"   {symbol:<10} | {position_data['side']:<10} | "
                         f"Size: {pos_size:>10.4f} | Entry: ${entry_px:>10.2f} | "
-                        f"PnL: {pnl_perc:>6.2f}%",
+                        f"PnL: {pnl_perc:>6.2f}% | Age: {age_str}",
                         "cyan",
                     )
 
@@ -695,58 +763,84 @@ FULL DATASET:
                 cprint(f"   ❌ Error fetching {symbol}: {e}", "red")
                 continue
 
+        # Sync tracker with actual exchange positions
+        if POSITION_TRACKER_AVAILABLE and exchange_positions:
+            added, removed = sync_with_exchange_positions(exchange_positions)
+            if added > 0:
+                cprint(f"   📝 Added {added} position(s) to tracker", "yellow")
+            if removed > 0:
+                cprint(f"   📝 Removed {removed} stale position(s) from tracker", "yellow")
+
         if not all_positions:
             cprint("   ℹ️  No open positions found", "yellow")
 
         cprint("=" * 60 + "\n", "cyan")
         return all_positions
 
-    def validate_close_decision(self, symbol, pnl_percent, age_hours, ai_confidence):
+    def validate_close_decision(self, symbol, pnl_percent, age_hours, ai_confidence, ai_decision="CLOSE"):
         """
-        3-Tier validation system to prevent premature position closes.
+        Three-Tier Position Close Validation System.
+
+        Tier 0: Emergency Stop Loss (-2% or worse) - FORCE CLOSE
+        Tier 1: Profit Target (+0.5% or better) - AI decides
+        Tier 2: Age Gating (young positions < 1.5h need protection)
+        Tier 3: Mature Position Analysis with loss-adjusted confidence
 
         Returns: (should_close: bool, reason: str)
         """
-        # Calculate minimum age based on timeframe and bars back
-        # Example: 30m timeframe * 2 days back (96 bars) = ~48 hours of data
-        # Minimum age = at least 1 hour for proper evolution
-        timeframe_minutes = {
-            '1m': 1, '5m': 5, '15m': 15, '30m': 30,
-            '1h': 60, '4h': 240, '1d': 1440
-        }
-
-        # Use instance variables instead of global constants
-        tf_mins = timeframe_minutes.get(self.timeframe, 30)
-        # Minimum age: at least 60 minutes (1 hour) for proper position evolution
-        min_age_hours = max(0.0, tf_mins * self.days_back / 60)
-
         cprint(f"\n🔍 VALIDATING CLOSE DECISION FOR {symbol}:", "yellow", attrs=["bold"])
+        cprint(f"   📊 P&L: {pnl_percent:.2f}% | Age: {age_hours:.1f}h | AI Confidence: {ai_confidence}%", "cyan")
 
-        # CHECK 1: Is profit >= 0.5%?
-        if pnl_percent >= 0.5:
-            cprint(f"   ✅ CHECK 1 PASSED: Profit {pnl_percent:.2f}% >= 0.5%", "green")
-            cprint(f"   💡 Reason: Taking profit", "white")
-            return True, "Profit >= 0.5% (taking profit)"
-        else:
-            cprint(f"   ⚠️  CHECK 1 FAILED: Profit {pnl_percent:.2f}% < 0.5%", "yellow")
+        # Use the close validator if available
+        if CLOSE_VALIDATOR_AVAILABLE:
+            result = validate_close_decision(
+                symbol=symbol,
+                pnl_percent=pnl_percent,
+                age_hours=age_hours,
+                ai_decision=ai_decision,
+                ai_confidence=ai_confidence
+            )
 
-        # CHECK 2: Position age check
-        if age_hours < min_age_hours:
-            cprint(f"   ❌ CHECK 2 FAILED: Position too young ({age_hours:.1f}h < {min_age_hours:.1f}h minimum)", "red")
-            cprint(f"   🛡️  FORCING KEEP - Let position evolve", "cyan", attrs=["bold"])
-            return False, f"Position too young ({age_hours:.1f}h < {min_age_hours:.1f}h) - needs time to evolve"
-        else:
-            cprint(f"   ✅ CHECK 2 PASSED: Position age {age_hours:.1f}h >= {min_age_hours:.1f}h", "green")
+            # Display validation result
+            tier_names = {0: "STOP LOSS", 1: "PROFIT TARGET", 2: "YOUNG POSITION", 3: "MATURE POSITION"}
+            tier_name = tier_names.get(result.tier_triggered, "UNKNOWN")
 
-        # CHECK 3: AI confidence >= 80%?
-        if ai_confidence >= 80:
-            cprint(f"   ✅ CHECK 3 PASSED: AI confidence {ai_confidence}% >= 80%", "green")
-            cprint(f"   💡 Reason: High confidence close signal", "white")
-            return True, f"High AI confidence ({ai_confidence}%) that position is wrong"
+            if result.decision == CloseDecision.FORCE_CLOSE:
+                cprint(f"   🚨 TIER {result.tier_triggered} ({tier_name}): FORCE CLOSE", "red", attrs=["bold"])
+                cprint(f"   💡 {result.reason}", "red")
+                add_console_log(f"🚨 STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
+                return True, result.reason
+
+            elif result.decision == CloseDecision.CLOSE:
+                cprint(f"   ✅ TIER {result.tier_triggered} ({tier_name}): CLOSE APPROVED", "green", attrs=["bold"])
+                cprint(f"   📈 Confidence: {result.original_confidence}% → {result.adjusted_confidence}% (boost: +{result.confidence_boost}%)", "green")
+                cprint(f"   💡 {result.reason}", "green")
+                return True, result.reason
+
+            elif result.decision == CloseDecision.PROTECTED:
+                cprint(f"   🛡️ TIER {result.tier_triggered} ({tier_name}): PROTECTED", "cyan", attrs=["bold"])
+                cprint(f"   💡 {result.reason}", "cyan")
+                return False, result.reason
+
+            else:  # KEEP
+                cprint(f"   ⏸️ TIER {result.tier_triggered} ({tier_name}): KEEP", "yellow", attrs=["bold"])
+                cprint(f"   📉 Confidence: {result.original_confidence}% → {result.adjusted_confidence}% (boost: +{result.confidence_boost}%)", "yellow")
+                cprint(f"   💡 {result.reason}", "yellow")
+                return False, result.reason
+
+        # Fallback to simple validation if close validator not available
         else:
-            cprint(f"   ❌ CHECK 3 FAILED: AI confidence {ai_confidence}% < 80%", "red")
-            cprint(f"   🛡️  FORCING KEEP - AI not confident enough", "cyan", attrs=["bold"])
-            return False, f"AI confidence too low ({ai_confidence}% < 80%) - let position evolve"
+            # Simple fallback: Stop loss at -2%, profit at +0.5%, otherwise keep
+            if pnl_percent <= STOP_LOSS_THRESHOLD:
+                cprint(f"   🚨 STOP LOSS TRIGGERED: {pnl_percent:.2f}%", "red", attrs=["bold"])
+                return True, f"Stop loss at {pnl_percent:.2f}%"
+
+            if pnl_percent >= PROFIT_TARGET_THRESHOLD and ai_confidence >= MIN_CONFIDENCE_TO_CLOSE:
+                cprint(f"   ✅ PROFIT TARGET: {pnl_percent:.2f}%, confidence {ai_confidence}%", "green")
+                return True, f"Profit target at {pnl_percent:.2f}%"
+
+            cprint(f"   ⏸️ KEEP: P&L {pnl_percent:.2f}%, confidence {ai_confidence}%", "yellow")
+            return False, f"Keep position - P&L {pnl_percent:.2f}%, confidence {ai_confidence}%"
 
     def analyze_open_positions_with_ai(self, positions_data, market_data):
         """AI analyzes open positions and decides KEEP or CLOSE for each"""
@@ -960,9 +1054,14 @@ Return ONLY valid JSON with the following structure:
 
                     n.close_complete_position(symbol, self.account)
 
+                    # Remove from position tracker
+                    if POSITION_TRACKER_AVAILABLE:
+                        remove_position(symbol)
+                        cprint(f"   📝 Removed {symbol} from position tracker", "cyan")
+
                     cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
                     add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
-                    
+
                     closed_count += 1
                     time.sleep(2)
 
@@ -1397,6 +1496,28 @@ Trading Recommendations (BUY signals only):
                         print(f"✅ Entry complete for {token}")
                         add_console_log(f"✅ {token} position opened successfully", "success")
 
+                        # Record position entry in tracker for age-based decisions
+                        if POSITION_TRACKER_AVAILABLE:
+                            try:
+                                # Get entry price for tracking
+                                entry_price = 0.0
+                                try:
+                                    raw_pos = n.get_position(token, self.account) if EXCHANGE == "HYPERLIQUID" else n.get_position(token)
+                                    if raw_pos and len(raw_pos) > 4:
+                                        entry_price = raw_pos[4]  # entry_px
+                                except Exception:
+                                    pass
+
+                                record_position_entry(
+                                    symbol=token,
+                                    entry_price=entry_price,
+                                    size=effective_value,
+                                    is_long=True  # Currently only LONG positions supported
+                                )
+                                cprint(f"   📝 Recorded {token} in position tracker", "cyan")
+                            except Exception as e:
+                                cprint(f"   ⚠️ Failed to record position: {e}", "yellow")
+
                         # Log position open (using shared logging utility)
                         try:
                             # Log the actual notional value opened
@@ -1416,6 +1537,11 @@ Trading Recommendations (BUY signals only):
                                 n.close_complete_position(token, self.account)
                             else:
                                 n.chunk_kill(token, max_usd_order_size, slippage)
+
+                            # Remove from position tracker
+                            if POSITION_TRACKER_AVAILABLE:
+                                remove_position(token)
+                                cprint(f"   📝 Removed {token} from position tracker", "cyan")
 
                             print(f"✅ Position closed for {token}")
                         else:
@@ -1651,7 +1777,7 @@ Trading Recommendations (BUY signals only):
         self.run_trading_cycle()
 
     def run_trading_cycle(self, strategy_signals=None):
-        """Enhanced trading cycle with position management"""
+        """Enhanced trading cycle with position management and intelligence integration"""
         try:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cprint(f"\n{'=' * 80}", "cyan")
@@ -1664,6 +1790,14 @@ Trading Recommendations (BUY signals only):
             if self.should_stop():
                 add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
                 return
+
+            # STEP 0: DISPLAY VOLUME INTELLIGENCE SUMMARY (if available)
+            if INTELLIGENCE_AVAILABLE:
+                volume_summary = get_volume_summary()
+                if volume_summary and "No volume" not in volume_summary:
+                    cprint("\n📊 VOLUME INTELLIGENCE:", "white", "on_blue")
+                    cprint(volume_summary, "cyan")
+                    add_console_log("📊 Volume intelligence loaded", "info")
 
             # STEP 1: FETCH ALL OPEN POSITIONS
             add_console_log("Fetching open positions...", "info")
