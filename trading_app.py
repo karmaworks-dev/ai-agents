@@ -34,7 +34,10 @@ BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
 # Import shared logging utility (prevents circular imports)
-from src.utils.logging_utils import add_console_log, log_queue, log_position_open
+from src.utils.logging_utils import (
+    add_console_log, log_queue, log_position_open,
+    add_backtest_log, add_rbi_log, backtest_log_queue
+)
 from src.utils.settings_manager import (
     load_settings,
     save_settings,
@@ -115,6 +118,7 @@ TRADES_FILE = DATA_DIR / "trades.json"
 HISTORY_FILE = DATA_DIR / "balance_history.json"
 CONSOLE_FILE = DATA_DIR / "console_logs.json"
 AGENT_STATE_FILE = DATA_DIR / "agent_state.json"
+BACKTEST_CONSOLE_FILE = DATA_DIR / "backtest_console_logs.json"
 
 # Agent control variables
 agent_thread = None
@@ -129,6 +133,9 @@ state_lock = threading.Lock()  # Lock for agent state variables
 # log_queue imported from src.utils.logging_utils
 log_writer_thread = None
 log_writer_running = False
+# Backtest log writer
+backtest_log_writer_thread = None
+backtest_log_writer_running = False
 
 # ============================================================================
 # RBI (BACKTEST) JOB QUEUE SYSTEM
@@ -216,43 +223,58 @@ def rbi_worker():
             idea = job['idea']
 
             print(f"🔄 Processing RBI job {job_id[:8]}...")
-            add_console_log(f"RBI: Starting job for idea: {idea[:50]}...", "info")
+            # Log to backtest console (detailed)
+            add_backtest_log(f"Starting job for idea: {idea[:80]}...", "info")
 
             try:
                 # Phase 1: Research
                 update_rbi_job(job_id, status='researching')
+                add_backtest_log("Phase 1/4: Researching strategy...", "info")
                 strategy, strategy_name = research_strategy(idea)
 
                 if not strategy:
                     update_rbi_job(job_id, status='error', error='Research phase failed')
+                    add_backtest_log("Research phase failed", "error")
                     continue
 
                 update_rbi_job(job_id, strategy_name=strategy_name)
-                add_console_log(f"RBI: Strategy '{strategy_name}' researched", "info")
+                # This logs to main console too (started message)
+                add_rbi_log(f"Strategy '{strategy_name}' started research phase", "info", strategy_name)
+                add_backtest_log(f"Strategy name: {strategy_name}", "success")
 
                 # Phase 2: Create backtest
                 update_rbi_job(job_id, status='backtesting')
+                add_backtest_log("Phase 2/4: Generating backtest code...", "info")
                 backtest_code = create_backtest(strategy, strategy_name)
 
                 if not backtest_code:
                     update_rbi_job(job_id, status='error', error='Backtest creation failed')
+                    add_backtest_log("Backtest creation failed", "error")
                     continue
 
-                add_console_log(f"RBI: Backtest code generated for '{strategy_name}'", "info")
+                add_backtest_log(f"Backtest code generated ({len(backtest_code)} chars)", "success")
 
                 # Phase 3: Package check
                 update_rbi_job(job_id, status='package_check')
+                add_backtest_log("Phase 3/4: Checking packages/imports...", "info")
                 packaged_code = package_check(backtest_code, strategy_name)
 
                 if not packaged_code:
                     packaged_code = backtest_code  # Continue with original if package check fails
+                    add_backtest_log("Package check skipped, using original code", "warning")
+                else:
+                    add_backtest_log("Package imports verified", "success")
 
                 # Phase 4: Debug
                 update_rbi_job(job_id, status='debugging')
+                add_backtest_log("Phase 4/4: Debugging and finalizing...", "info")
                 final_code = debug_backtest(packaged_code, strategy, strategy_name)
 
                 if not final_code:
                     final_code = packaged_code  # Use packaged code if debug fails
+                    add_backtest_log("Debug phase skipped, using packaged code", "warning")
+                else:
+                    add_backtest_log("Debug phase completed", "success")
 
                 # Mark as completed
                 update_rbi_job(
@@ -261,11 +283,13 @@ def rbi_worker():
                     completed_at=datetime.now().isoformat(),
                     strategy_name=strategy_name
                 )
-                add_console_log(f"RBI: Strategy '{strategy_name}' completed!", "success")
+                # This logs to main console too (completed message)
+                add_rbi_log(f"Strategy '{strategy_name}' completed successfully!", "success", strategy_name)
+                add_backtest_log(f"✅ Strategy '{strategy_name}' ready to run!", "success")
 
             except Exception as e:
                 update_rbi_job(job_id, status='error', error=str(e))
-                add_console_log(f"RBI: Error processing job: {str(e)}", "error")
+                add_backtest_log(f"Error: {str(e)}", "error")
 
         except Exception as e:
             print(f"⚠️ RBI worker error: {e}")
@@ -435,6 +459,94 @@ def log_writer_worker():
 
 # add_console_log function now imported from src.utils.logging_utils
 # This prevents circular imports and fixes the broken log reference bug
+
+
+def backtest_log_writer_worker():
+    """Background thread that batches backtest log writes to separate file."""
+    global backtest_log_writer_running
+
+    log_buffer = []
+    last_write_time = time.time()
+    WRITE_INTERVAL = 1.0  # Write to disk every 1 second (faster updates for backtest console)
+
+    while backtest_log_writer_running:
+        try:
+            # Try to get logs from backtest queue with timeout
+            try:
+                log_entry = backtest_log_queue.get(timeout=0.5)
+                log_buffer.append(log_entry)
+                backtest_log_queue.task_done()
+            except queue.Empty:
+                pass
+
+            # Write to disk if buffer has entries and interval elapsed
+            current_time = time.time()
+            if log_buffer and (current_time - last_write_time >= WRITE_INTERVAL):
+                # Write to backtest_console_logs.json
+                if BACKTEST_CONSOLE_FILE.exists():
+                    try:
+                        with open(BACKTEST_CONSOLE_FILE, 'r') as f:
+                            logs = json.load(f)
+                    except (json.JSONDecodeError, IOError):
+                        logs = []
+                else:
+                    logs = []
+
+                # Append buffered logs
+                logs.extend(log_buffer)
+
+                # Keep last 500 entries (more logs for backtesting)
+                logs = logs[-500:]
+
+                # Write to disk
+                with open(BACKTEST_CONSOLE_FILE, 'w') as f:
+                    json.dump(logs, f, indent=2)
+
+                # Clear buffer and update timestamp
+                log_buffer.clear()
+                last_write_time = current_time
+
+        except Exception as e:
+            print(f"⚠️ Backtest log writer error: {e}")
+            time.sleep(1)
+
+    # Final flush on shutdown
+    if log_buffer:
+        try:
+            if BACKTEST_CONSOLE_FILE.exists():
+                with open(BACKTEST_CONSOLE_FILE, 'r') as f:
+                    logs = json.load(f)
+            else:
+                logs = []
+
+            logs.extend(log_buffer)
+            logs = logs[-500:]
+
+            with open(BACKTEST_CONSOLE_FILE, 'w') as f:
+                json.dump(logs, f, indent=2)
+        except Exception as e:
+            print(f"⚠️ Backtest final log flush error: {e}")
+
+
+def get_backtest_console_logs():
+    """Get backtest console logs"""
+    try:
+        if BACKTEST_CONSOLE_FILE.exists():
+            with open(BACKTEST_CONSOLE_FILE, 'r') as f:
+                content = f.read()
+                if not content.strip():
+                    return []
+                return json.loads(content)
+        return []
+    except json.JSONDecodeError as e:
+        print(f"⚠️ Backtest console log file corrupted, resetting: {e}")
+        with open(BACKTEST_CONSOLE_FILE, 'w') as f:
+            json.dump([], f)
+        return []
+    except Exception as e:
+        print(f"⚠️ Error loading backtest console logs: {e}")
+        return []
+
 
 # ============================================================================
 # IMPORT TRADING FUNCTIONS (Favoring src module)
@@ -1072,6 +1184,32 @@ def get_console():
     except Exception as e:
         print(f"❌ Error in /api/console: {e}")
         return jsonify([])
+
+
+@app.route('/api/backtest-console')
+@login_required
+def get_backtest_console():
+    """API endpoint for backtest-specific console logs (separate from main trading logs)"""
+    try:
+        logs = get_backtest_console_logs()
+        return jsonify(logs)
+    except Exception as e:
+        print(f"❌ Error in /api/backtest-console: {e}")
+        return jsonify([])
+
+
+@app.route('/api/backtest-console/clear', methods=['POST'])
+@login_required
+def clear_backtest_console():
+    """Clear the backtest console logs"""
+    try:
+        with open(BACKTEST_CONSOLE_FILE, 'w') as f:
+            json.dump([], f)
+        add_backtest_log("Console cleared", "info")
+        return jsonify({"success": True, "message": "Backtest console cleared"})
+    except Exception as e:
+        print(f"❌ Error clearing backtest console: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/start', methods=['POST'])
@@ -1767,11 +1905,14 @@ def run_rbi_backtest(job_id):
 
     # Run the backtest in a subprocess
     try:
-        add_console_log(f"RBI: Running backtest for '{strategy_name}'...", "info")
+        # Log to both consoles (started message goes to main)
+        add_rbi_log(f"Running backtest for '{strategy_name}' - started", "info", strategy_name)
+        add_backtest_log(f"Executing backtest: {backtest_file.name}", "info")
 
         # Run in background
         def run_backtest():
             try:
+                add_backtest_log(f"Running Python subprocess...", "info")
                 result = subprocess.run(
                     ['python', str(backtest_file)],
                     capture_output=True,
@@ -1780,17 +1921,22 @@ def run_rbi_backtest(job_id):
                     cwd=str(BASE_DIR)
                 )
                 if result.returncode == 0:
-                    add_console_log(f"RBI: Backtest '{strategy_name}' completed successfully", "success")
-                    # Log output lines
-                    for line in result.stdout.split('\n')[-20:]:  # Last 20 lines
+                    # Log to both consoles (completed message goes to main)
+                    add_rbi_log(f"Backtest '{strategy_name}' execution completed", "success", strategy_name)
+                    add_backtest_log(f"✅ Backtest execution successful!", "success")
+                    # Log output lines to backtest console only
+                    add_backtest_log("--- Backtest Output ---", "info")
+                    for line in result.stdout.split('\n')[-30:]:  # Last 30 lines
                         if line.strip():
-                            add_console_log(f"RBI: {line}", "info")
+                            add_backtest_log(line, "info")
+                    add_backtest_log("--- End Output ---", "info")
                 else:
-                    add_console_log(f"RBI: Backtest '{strategy_name}' failed: {result.stderr[:200]}", "error")
+                    add_backtest_log(f"❌ Backtest failed with return code {result.returncode}", "error")
+                    add_backtest_log(f"Error: {result.stderr[:500]}", "error")
             except subprocess.TimeoutExpired:
-                add_console_log(f"RBI: Backtest '{strategy_name}' timed out", "error")
+                add_backtest_log(f"⏰ Backtest '{strategy_name}' timed out (5 min limit)", "error")
             except Exception as e:
-                add_console_log(f"RBI: Error running backtest: {str(e)}", "error")
+                add_backtest_log(f"Error running backtest: {str(e)}", "error")
 
         thread = threading.Thread(target=run_backtest, daemon=True)
         thread.start()
@@ -1869,6 +2015,19 @@ def cleanup_and_exit(signum=None, frame=None):
         else:
             print("   ✅ Log writer stopped")
 
+    # Stop backtest log writer thread
+    print("⏹️  Stopping backtest log writer...")
+    backtest_log_writer_running = False
+
+    if backtest_log_writer_thread and backtest_log_writer_thread.is_alive():
+        print("   Waiting for backtest log writer to flush...")
+        backtest_log_writer_thread.join(timeout=3)
+
+        if backtest_log_writer_thread.is_alive():
+            print("   ⚠️  Backtest log writer still running after timeout")
+        else:
+            print("   ✅ Backtest log writer stopped")
+
     try:
         add_console_log("Dashboard server shutting down", "info")
         # Give a moment for final log to be queued
@@ -1901,6 +2060,13 @@ if __name__ == '__main__':
     log_writer_thread = threading.Thread(target=log_writer_worker, daemon=True)
     log_writer_thread.start()
     print("✅ Log writer started")
+
+    # Start backtest log writer thread
+    print("🔬 Starting backtest log writer...")
+    backtest_log_writer_running = True
+    backtest_log_writer_thread = threading.Thread(target=backtest_log_writer_worker, daemon=True)
+    backtest_log_writer_thread.start()
+    print("✅ Backtest log writer started")
 
     # Load RBI jobs from persistent storage
     print("🔬 Loading RBI jobs...")
