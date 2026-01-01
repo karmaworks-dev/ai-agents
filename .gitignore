@@ -100,6 +100,7 @@ moon-dev-ai-agents-for-trading/src/dev
 src/dev
 src/agents/api_data
 cookies.json
+Procfile
 src/data/agent_memory
 src/data/private_data
 src/data/sentiment
