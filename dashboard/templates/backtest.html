@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RBI Backtesting Studio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* Backtest-specific styles */
+        .backtest-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .idea-form {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .idea-form h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            min-height: 120px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--text-primary);
+            font-family: var(--font-primary);
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        .form-group textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-hints {
+            display: flex;
+            gap: 16px;
+            margin-top: 8px;
+        }
+
+        .hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .hint svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, var(--accent-green), #00cc6a);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+        }
+
+        .submit-btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Job Queue */
+        .jobs-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .jobs-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .jobs-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--bg-tertiary);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-body {
+            padding: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        /* Job Cards */
+        .job-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .job-card:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .job-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .job-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .job-status {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .job-status.queued {
+            background: rgba(255, 165, 2, 0.15);
+            color: var(--accent-yellow);
+        }
+
+        .job-status.researching, .job-status.backtesting, .job-status.debugging {
+            background: rgba(33, 150, 243, 0.15);
+            color: var(--accent-blue);
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .job-status.completed {
+            background: rgba(0, 255, 136, 0.15);
+            color: var(--accent-green);
+        }
+
+        .job-status.error {
+            background: rgba(255, 71, 87, 0.15);
+            color: var(--accent-red);
+        }
+
+        .job-progress {
+            margin-bottom: 12px;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--bg-secondary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+            transition: width 0.3s ease;
+        }
+
+        .job-info {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .job-actions button {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-view {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .btn-view:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        .btn-run {
+            background: rgba(0, 255, 136, 0.15);
+            border: 1px solid var(--accent-green);
+            color: var(--accent-green);
+        }
+
+        .btn-run:hover {
+            background: rgba(0, 255, 136, 0.25);
+        }
+
+        /* Results Panel */
+        .results-content {
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .code-block {
+            background: #0d0d0d;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .code-block pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-box .stat-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-box .stat-value.positive {
+            color: var(--accent-green);
+        }
+
+        .stat-box .stat-value.negative {
+            color: var(--accent-red);
+        }
+
+        .stat-box .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* Navigation */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 20px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--text-primary);
+        }
+
+        /* Results tabs */
+        .results-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 16px;
+        }
+
+        .results-tab {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .results-tab.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: #fff;
+        }
+
+        .results-tab:hover:not(.active) {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>RBI Backtesting</h1>
+                <span class="agent-badge ready" id="rbi-status">ready</span>
+            </div>
+            <div class="header-right">
+                <a href="/" class="icon-btn" title="Back to Dashboard">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                </a>
+            </div>
+        </header>
+
+        <div class="backtest-container">
+            <a href="/" class="back-link">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Back to Dashboard
+            </a>
+
+            <!-- Idea Submission Form -->
+            <div class="idea-form">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
+                    Submit Trading Idea
+                </h2>
+                <form id="idea-form" onsubmit="submitIdea(event)">
+                    <div class="form-group">
+                        <label for="idea-input">Strategy Idea</label>
+                        <textarea
+                            id="idea-input"
+                            name="idea"
+                            placeholder="Enter a trading strategy idea, YouTube URL, or paste a PDF link...
+
+Examples:
+- RSI divergence strategy: buy when RSI shows bullish divergence on 4H timeframe
+- https://youtube.com/watch?v=... (trading video)
+- Bollinger Bands mean reversion with ATR-based stop loss"
+                            required
+                        ></textarea>
+                        <div class="input-hints">
+                            <span class="hint">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                                Text descriptions
+                            </span>
+                            <span class="hint">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                                YouTube URLs
+                            </span>
+                            <span class="hint">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                                PDF links
+                            </span>
+                        </div>
+                    </div>
+                    <button type="submit" class="submit-btn" id="submit-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                        Generate Backtest
+                    </button>
+                </form>
+            </div>
+
+            <!-- Jobs Section -->
+            <div class="jobs-section">
+                <!-- Active Jobs -->
+                <div class="jobs-panel">
+                    <div class="panel-header">
+                        <h3>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            Active Jobs
+                        </h3>
+                        <span class="badge" id="active-count">0</span>
+                    </div>
+                    <div class="panel-body" id="active-jobs">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                            <p>No active jobs</p>
+                            <p style="font-size: 12px; margin-top: 8px;">Submit an idea to start generating backtests</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completed Jobs / Results -->
+                <div class="jobs-panel">
+                    <div class="panel-header">
+                        <h3>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            Completed Strategies
+                        </h3>
+                        <span class="badge" id="completed-count">0</span>
+                    </div>
+                    <div class="panel-body" id="completed-jobs">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                            <p>No completed strategies yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Modal -->
+        <div id="results-modal" class="modal" onclick="closeResultsModal(event)">
+            <div class="modal-content settings-modal-wide" onclick="event.stopPropagation()" style="max-width: 900px;">
+                <div class="modal-header">
+                    <h2 id="results-title">Strategy Results</h2>
+                    <button class="modal-close" onclick="closeResultsModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- Results Tabs -->
+                    <div class="results-tabs">
+                        <button class="results-tab active" data-tab="code" onclick="switchResultsTab('code')">Backtest Code</button>
+                        <button class="results-tab" data-tab="research" onclick="switchResultsTab('research')">Research</button>
+                    </div>
+
+                    <!-- Code Tab -->
+                    <div id="results-tab-code" class="results-content">
+                        <div class="code-block">
+                            <pre id="backtest-code">Loading...</pre>
+                        </div>
+                        <div class="job-actions" style="margin-top: 16px;">
+                            <button class="btn-view" onclick="copyCode()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                Copy Code
+                            </button>
+                            <button class="btn-run" onclick="downloadCode()">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                Download .py
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Research Tab -->
+                    <div id="results-tab-research" class="results-content" style="display: none;">
+                        <div class="code-block">
+                            <pre id="research-output">Loading...</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>RBI Agent - Research, Backtest, Implement</p>
+        </footer>
+    </div>
+
+    <script>
+        // State
+        let jobs = [];
+        let pollInterval = null;
+        let currentJobId = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadJobs();
+            startPolling();
+        });
+
+        // Start polling for job updates
+        function startPolling() {
+            pollInterval = setInterval(loadJobs, 3000);
+        }
+
+        // Load all jobs
+        async function loadJobs() {
+            try {
+                const response = await fetch('/api/rbi/jobs');
+                if (response.ok) {
+                    jobs = await response.json();
+                    renderJobs();
+                }
+            } catch (error) {
+                console.error('Failed to load jobs:', error);
+            }
+        }
+
+        // Render jobs in the UI
+        function renderJobs() {
+            const activeJobs = jobs.filter(j => !['completed', 'error'].includes(j.status));
+            const completedJobs = jobs.filter(j => ['completed', 'error'].includes(j.status));
+
+            document.getElementById('active-count').textContent = activeJobs.length;
+            document.getElementById('completed-count').textContent = completedJobs.length;
+
+            // Update RBI status badge
+            const statusBadge = document.getElementById('rbi-status');
+            if (activeJobs.length > 0) {
+                statusBadge.textContent = 'processing';
+                statusBadge.className = 'agent-badge running';
+            } else {
+                statusBadge.textContent = 'ready';
+                statusBadge.className = 'agent-badge ready';
+            }
+
+            // Render active jobs
+            const activeContainer = document.getElementById('active-jobs');
+            if (activeJobs.length === 0) {
+                activeContainer.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        <p>No active jobs</p>
+                        <p style="font-size: 12px; margin-top: 8px;">Submit an idea to start generating backtests</p>
+                    </div>
+                `;
+            } else {
+                activeContainer.innerHTML = activeJobs.map(job => renderJobCard(job)).join('');
+            }
+
+            // Render completed jobs
+            const completedContainer = document.getElementById('completed-jobs');
+            if (completedJobs.length === 0) {
+                completedContainer.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                        <p>No completed strategies yet</p>
+                    </div>
+                `;
+            } else {
+                completedContainer.innerHTML = completedJobs.slice(0, 20).map(job => renderJobCard(job)).join('');
+            }
+        }
+
+        // Render a single job card
+        function renderJobCard(job) {
+            const progress = getProgressPercent(job.status);
+            const statusLabel = getStatusLabel(job.status);
+            const truncatedIdea = job.idea.length > 80 ? job.idea.substring(0, 80) + '...' : job.idea;
+
+            let actions = '';
+            if (job.status === 'completed') {
+                actions = `
+                    <div class="job-actions">
+                        <button class="btn-view" onclick="viewResults('${job.id}')">View Code</button>
+                        <button class="btn-run" onclick="runBacktest('${job.id}')">Run Backtest</button>
+                    </div>
+                `;
+            } else if (job.status === 'error') {
+                actions = `
+                    <div class="job-actions">
+                        <button class="btn-view" onclick="viewError('${job.id}')">View Error</button>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="job-card" data-job-id="${job.id}">
+                    <div class="job-header">
+                        <span class="job-name">${job.strategy_name || 'Processing...'}</span>
+                        <span class="job-status ${job.status}">${statusLabel}</span>
+                    </div>
+                    ${job.status !== 'completed' && job.status !== 'error' ? `
+                    <div class="job-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                    ` : ''}
+                    <div class="job-info">${truncatedIdea}</div>
+                    ${actions}
+                </div>
+            `;
+        }
+
+        // Get progress percentage based on status
+        function getProgressPercent(status) {
+            const stages = {
+                'queued': 10,
+                'researching': 30,
+                'backtesting': 50,
+                'package_check': 70,
+                'debugging': 85,
+                'completed': 100,
+                'error': 100
+            };
+            return stages[status] || 0;
+        }
+
+        // Get human-readable status label
+        function getStatusLabel(status) {
+            const labels = {
+                'queued': 'Queued',
+                'researching': 'Researching',
+                'backtesting': 'Backtesting',
+                'package_check': 'Fixing Imports',
+                'debugging': 'Debugging',
+                'completed': 'Completed',
+                'error': 'Error'
+            };
+            return labels[status] || status;
+        }
+
+        // Submit a new idea
+        async function submitIdea(event) {
+            event.preventDefault();
+
+            const ideaInput = document.getElementById('idea-input');
+            const submitBtn = document.getElementById('submit-btn');
+            const idea = ideaInput.value.trim();
+
+            if (!idea) return;
+
+            // Disable button and show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
+
+            try {
+                const response = await fetch('/api/rbi/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idea })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    ideaInput.value = '';
+                    loadJobs(); // Refresh job list
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.error || 'Failed to submit idea'));
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    Generate Backtest
+                `;
+            }
+        }
+
+        // View job results
+        async function viewResults(jobId) {
+            currentJobId = jobId;
+            const job = jobs.find(j => j.id === jobId);
+            if (!job) return;
+
+            document.getElementById('results-title').textContent = job.strategy_name || 'Strategy Results';
+            document.getElementById('results-modal').style.display = 'flex';
+
+            // Load code
+            try {
+                const response = await fetch(`/api/rbi/results/${jobId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('backtest-code').textContent = data.code || 'No code available';
+                    document.getElementById('research-output').textContent = data.research || 'No research output available';
+                }
+            } catch (error) {
+                document.getElementById('backtest-code').textContent = 'Failed to load results: ' + error.message;
+            }
+        }
+
+        // View error details
+        async function viewError(jobId) {
+            const job = jobs.find(j => j.id === jobId);
+            if (!job) return;
+
+            alert('Error: ' + (job.error || 'Unknown error occurred'));
+        }
+
+        // Run backtest
+        async function runBacktest(jobId) {
+            try {
+                const response = await fetch(`/api/rbi/run/${jobId}`, { method: 'POST' });
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('Backtest started! Check the console for output.');
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.error || 'Failed to run backtest'));
+                }
+            } catch (error) {
+                alert('Network error: ' + error.message);
+            }
+        }
+
+        // Close results modal
+        function closeResultsModal(event) {
+            if (!event || event.target === event.currentTarget) {
+                document.getElementById('results-modal').style.display = 'none';
+                currentJobId = null;
+            }
+        }
+
+        // Switch results tab
+        function switchResultsTab(tab) {
+            document.querySelectorAll('.results-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.results-tab[data-tab="${tab}"]`).classList.add('active');
+
+            document.getElementById('results-tab-code').style.display = tab === 'code' ? 'block' : 'none';
+            document.getElementById('results-tab-research').style.display = tab === 'research' ? 'block' : 'none';
+        }
+
+        // Copy code to clipboard
+        function copyCode() {
+            const code = document.getElementById('backtest-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code copied to clipboard!');
+            });
+        }
+
+        // Download code as .py file
+        function downloadCode() {
+            const job = jobs.find(j => j.id === currentJobId);
+            const code = document.getElementById('backtest-code').textContent;
+            const filename = (job?.strategy_name || 'backtest') + '_BTFinal.py';
+
+            const blob = new Blob([code], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Handle escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeResultsModal();
+            }
+        });
+    </script>
+</body>
+</html>

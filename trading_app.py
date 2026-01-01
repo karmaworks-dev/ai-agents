@@ -18,6 +18,8 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 import signal
 import atexit
+import uuid
+import subprocess
 from functools import wraps
 
 # ============================================================================
@@ -127,6 +129,161 @@ state_lock = threading.Lock()  # Lock for agent state variables
 # log_queue imported from src.utils.logging_utils
 log_writer_thread = None
 log_writer_running = False
+
+# ============================================================================
+# RBI (BACKTEST) JOB QUEUE SYSTEM
+# ============================================================================
+
+# RBI Job state management
+rbi_jobs = []  # List of all RBI jobs
+rbi_jobs_lock = threading.Lock()
+rbi_worker_thread = None
+rbi_worker_running = False
+rbi_job_queue = queue.Queue()
+
+# RBI Data directories
+RBI_DATA_DIR = DATA_DIR / "rbi"
+RBI_DATA_DIR.mkdir(parents=True, exist_ok=True)
+RBI_JOBS_FILE = RBI_DATA_DIR / "jobs.json"
+
+
+def load_rbi_jobs():
+    """Load RBI jobs from persistent storage."""
+    global rbi_jobs
+    try:
+        if RBI_JOBS_FILE.exists():
+            with open(RBI_JOBS_FILE, 'r') as f:
+                rbi_jobs = json.load(f)
+    except Exception as e:
+        print(f"⚠️ Failed to load RBI jobs: {e}")
+        rbi_jobs = []
+
+
+def save_rbi_jobs():
+    """Save RBI jobs to persistent storage."""
+    try:
+        with open(RBI_JOBS_FILE, 'w') as f:
+            json.dump(rbi_jobs, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Failed to save RBI jobs: {e}")
+
+
+def update_rbi_job(job_id, **updates):
+    """Update a specific RBI job."""
+    with rbi_jobs_lock:
+        for job in rbi_jobs:
+            if job['id'] == job_id:
+                job.update(updates)
+                save_rbi_jobs()
+                return True
+    return False
+
+
+def rbi_worker():
+    """Background worker that processes RBI jobs."""
+    global rbi_worker_running
+
+    # Import RBI functions here to avoid circular imports
+    try:
+        from src.agents.rbi_agent import (
+            research_strategy,
+            create_backtest,
+            package_check,
+            debug_backtest,
+            TODAY_DIR,
+            RESEARCH_DIR,
+            BACKTEST_DIR,
+            FINAL_BACKTEST_DIR
+        )
+        rbi_available = True
+    except ImportError as e:
+        print(f"⚠️ RBI Agent not available: {e}")
+        rbi_available = False
+
+    while rbi_worker_running:
+        try:
+            # Wait for a job with timeout
+            try:
+                job = rbi_job_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            if not rbi_available:
+                update_rbi_job(job['id'], status='error', error='RBI Agent not available')
+                continue
+
+            job_id = job['id']
+            idea = job['idea']
+
+            print(f"🔄 Processing RBI job {job_id[:8]}...")
+            add_console_log(f"RBI: Starting job for idea: {idea[:50]}...", "info")
+
+            try:
+                # Phase 1: Research
+                update_rbi_job(job_id, status='researching')
+                strategy, strategy_name = research_strategy(idea)
+
+                if not strategy:
+                    update_rbi_job(job_id, status='error', error='Research phase failed')
+                    continue
+
+                update_rbi_job(job_id, strategy_name=strategy_name)
+                add_console_log(f"RBI: Strategy '{strategy_name}' researched", "info")
+
+                # Phase 2: Create backtest
+                update_rbi_job(job_id, status='backtesting')
+                backtest_code = create_backtest(strategy, strategy_name)
+
+                if not backtest_code:
+                    update_rbi_job(job_id, status='error', error='Backtest creation failed')
+                    continue
+
+                add_console_log(f"RBI: Backtest code generated for '{strategy_name}'", "info")
+
+                # Phase 3: Package check
+                update_rbi_job(job_id, status='package_check')
+                packaged_code = package_check(backtest_code, strategy_name)
+
+                if not packaged_code:
+                    packaged_code = backtest_code  # Continue with original if package check fails
+
+                # Phase 4: Debug
+                update_rbi_job(job_id, status='debugging')
+                final_code = debug_backtest(packaged_code, strategy, strategy_name)
+
+                if not final_code:
+                    final_code = packaged_code  # Use packaged code if debug fails
+
+                # Mark as completed
+                update_rbi_job(
+                    job_id,
+                    status='completed',
+                    completed_at=datetime.now().isoformat(),
+                    strategy_name=strategy_name
+                )
+                add_console_log(f"RBI: Strategy '{strategy_name}' completed!", "success")
+
+            except Exception as e:
+                update_rbi_job(job_id, status='error', error=str(e))
+                add_console_log(f"RBI: Error processing job: {str(e)}", "error")
+
+        except Exception as e:
+            print(f"⚠️ RBI worker error: {e}")
+            time.sleep(1)
+
+
+def start_rbi_worker():
+    """Start the RBI background worker if not running."""
+    global rbi_worker_thread, rbi_worker_running
+
+    if rbi_worker_thread and rbi_worker_thread.is_alive():
+        return  # Already running
+
+    rbi_worker_running = True
+    rbi_worker_thread = threading.Thread(target=rbi_worker, daemon=True)
+    rbi_worker_thread.start()
+    print("✅ RBI worker started")
+
 
 # Symbols list (for trading agent reference)
 SYMBOLS = [
@@ -1410,6 +1567,243 @@ def get_tier_feature_access():
         }), 500
 
 
+# ============================================================================
+# RBI BACKTESTING ROUTES
+# ============================================================================
+
+@app.route('/backtest')
+@login_required
+def backtest_page():
+    """Serve the RBI Backtesting Studio page."""
+    return render_template('backtest.html')
+
+
+@app.route('/api/rbi/jobs', methods=['GET'])
+@login_required
+def get_rbi_jobs():
+    """Get all RBI jobs."""
+    with rbi_jobs_lock:
+        # Return jobs sorted by created_at descending (newest first)
+        sorted_jobs = sorted(rbi_jobs, key=lambda x: x.get('created_at', ''), reverse=True)
+        return jsonify(sorted_jobs)
+
+
+@app.route('/api/rbi/submit', methods=['POST'])
+@login_required
+def submit_rbi_idea():
+    """Submit a new idea for RBI processing."""
+    try:
+        data = request.get_json()
+        idea = data.get('idea', '').strip()
+
+        if not idea:
+            return jsonify({'error': 'Idea is required'}), 400
+
+        # Create new job
+        job_id = str(uuid.uuid4())
+        job = {
+            'id': job_id,
+            'idea': idea,
+            'status': 'queued',
+            'strategy_name': None,
+            'created_at': datetime.now().isoformat(),
+            'completed_at': None,
+            'error': None
+        }
+
+        # Add to jobs list and queue
+        with rbi_jobs_lock:
+            rbi_jobs.append(job)
+            save_rbi_jobs()
+
+        rbi_job_queue.put(job)
+
+        # Start worker if not running
+        start_rbi_worker()
+
+        add_console_log(f"RBI: New idea submitted: {idea[:50]}...", "info")
+
+        return jsonify({
+            'success': True,
+            'job_id': job_id,
+            'message': 'Idea submitted successfully'
+        })
+
+    except Exception as e:
+        print(f"❌ Error submitting RBI idea: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/rbi/status/<job_id>', methods=['GET'])
+@login_required
+def get_rbi_job_status(job_id):
+    """Get status of a specific RBI job."""
+    with rbi_jobs_lock:
+        for job in rbi_jobs:
+            if job['id'] == job_id:
+                return jsonify(job)
+    return jsonify({'error': 'Job not found'}), 404
+
+
+@app.route('/api/rbi/results/<job_id>', methods=['GET'])
+@login_required
+def get_rbi_results(job_id):
+    """Get results for a completed RBI job."""
+    with rbi_jobs_lock:
+        job = None
+        for j in rbi_jobs:
+            if j['id'] == job_id:
+                job = j
+                break
+
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+
+    if job['status'] != 'completed':
+        return jsonify({'error': 'Job not completed yet'}), 400
+
+    strategy_name = job.get('strategy_name', 'Unknown')
+
+    # Try to find the generated files
+    code = None
+    research = None
+
+    # Get today's date folder (RBI organizes by date)
+    from datetime import datetime as dt
+    today = dt.now().strftime("%m_%d_%Y")
+    today_dir = RBI_DATA_DIR / today
+
+    # Look for the backtest code
+    final_backtest_dir = today_dir / "backtests_final"
+    if final_backtest_dir.exists():
+        for file in final_backtest_dir.glob(f"*{strategy_name}*BTFinal.py"):
+            try:
+                code = file.read_text()
+                break
+            except Exception:
+                pass
+
+    # If not found in today, check other date folders
+    if not code:
+        for date_dir in sorted(RBI_DATA_DIR.iterdir(), reverse=True):
+            if date_dir.is_dir() and date_dir.name != "jobs.json":
+                final_dir = date_dir / "backtests_final"
+                if final_dir.exists():
+                    for file in final_dir.glob(f"*{strategy_name}*BTFinal.py"):
+                        try:
+                            code = file.read_text()
+                            break
+                        except Exception:
+                            pass
+                if code:
+                    break
+
+    # Look for research output
+    research_dir = today_dir / "research"
+    if research_dir.exists():
+        for file in research_dir.glob(f"*{strategy_name}*.txt"):
+            try:
+                research = file.read_text()
+                break
+            except Exception:
+                pass
+
+    # If not found in today, check other date folders
+    if not research:
+        for date_dir in sorted(RBI_DATA_DIR.iterdir(), reverse=True):
+            if date_dir.is_dir() and date_dir.name != "jobs.json":
+                res_dir = date_dir / "research"
+                if res_dir.exists():
+                    for file in res_dir.glob(f"*{strategy_name}*.txt"):
+                        try:
+                            research = file.read_text()
+                            break
+                        except Exception:
+                            pass
+                if research:
+                    break
+
+    return jsonify({
+        'job_id': job_id,
+        'strategy_name': strategy_name,
+        'code': code or 'Backtest code not found',
+        'research': research or 'Research output not found'
+    })
+
+
+@app.route('/api/rbi/run/<job_id>', methods=['POST'])
+@login_required
+def run_rbi_backtest(job_id):
+    """Execute a generated backtest."""
+    with rbi_jobs_lock:
+        job = None
+        for j in rbi_jobs:
+            if j['id'] == job_id:
+                job = j
+                break
+
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+
+    if job['status'] != 'completed':
+        return jsonify({'error': 'Job not completed yet'}), 400
+
+    strategy_name = job.get('strategy_name', 'Unknown')
+
+    # Find the backtest file
+    backtest_file = None
+    for date_dir in sorted(RBI_DATA_DIR.iterdir(), reverse=True):
+        if date_dir.is_dir() and date_dir.name != "jobs.json":
+            final_dir = date_dir / "backtests_final"
+            if final_dir.exists():
+                for file in final_dir.glob(f"*{strategy_name}*BTFinal.py"):
+                    backtest_file = file
+                    break
+            if backtest_file:
+                break
+
+    if not backtest_file:
+        return jsonify({'error': 'Backtest file not found'}), 404
+
+    # Run the backtest in a subprocess
+    try:
+        add_console_log(f"RBI: Running backtest for '{strategy_name}'...", "info")
+
+        # Run in background
+        def run_backtest():
+            try:
+                result = subprocess.run(
+                    ['python', str(backtest_file)],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    cwd=str(BASE_DIR)
+                )
+                if result.returncode == 0:
+                    add_console_log(f"RBI: Backtest '{strategy_name}' completed successfully", "success")
+                    # Log output lines
+                    for line in result.stdout.split('\n')[-20:]:  # Last 20 lines
+                        if line.strip():
+                            add_console_log(f"RBI: {line}", "info")
+                else:
+                    add_console_log(f"RBI: Backtest '{strategy_name}' failed: {result.stderr[:200]}", "error")
+            except subprocess.TimeoutExpired:
+                add_console_log(f"RBI: Backtest '{strategy_name}' timed out", "error")
+            except Exception as e:
+                add_console_log(f"RBI: Error running backtest: {str(e)}", "error")
+
+        thread = threading.Thread(target=run_backtest, daemon=True)
+        thread.start()
+
+        return jsonify({
+            'success': True,
+            'message': f'Backtest started for {strategy_name}'
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/health')
 def health_check():
     """Health check endpoint for EasyPanel"""
@@ -1508,6 +1902,11 @@ if __name__ == '__main__':
     log_writer_thread.start()
     print("✅ Log writer started")
 
+    # Load RBI jobs from persistent storage
+    print("🔬 Loading RBI jobs...")
+    load_rbi_jobs()
+    print(f"✅ Loaded {len(rbi_jobs)} RBI jobs")
+
     # Startup Banner for Terminal
     print(f"""
 {'=' * 60}
@@ -1515,6 +1914,7 @@ AI Trading Dashboard
 {'=' * 60}
 Dashboard URL: http://0.0.0.0:{port}
 Local URL:     http://localhost:{port}
+Backtest URL:  http://localhost:{port}/backtest
 Exchange:      HyperLiquid
 Status:        {'Connected ✅' if EXCHANGE_CONNECTED else 'Demo Mode ⚠️'}
 Agent Status:  {'Running 🟢' if agent_running else 'Stopped 🔴'}
