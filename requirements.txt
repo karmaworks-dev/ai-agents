@@ -79,11 +79,11 @@ matplotlib-inline==0.2.1
 mdurl==0.1.2
 msgpack==1.1.2
 numba==0.61.2
-numpy==2.2.6
+# numpy==2.2.6  # Removed: conflicts with TA-Lib-Precompiled
 
 # Data Analysis
 pandas==2.3.3
-pandas-ta==0.4.71b0
+# pandas-ta==0.4.71b0  # Removed: requires Python 3.12+, using TA-Lib-Precompiled instead
 
 # Parsing & Processing
 parsimonious==0.10.0
