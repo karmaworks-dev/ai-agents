@@ -95,7 +95,7 @@ class OllamaModel(BaseModel):
     
     def __init__(self, api_key=None, model_name="llama3.2"):
         """Initialize Ollama model
-
+        
         Args:
             api_key: Not used for Ollama but kept for compatibility
             model_name: Name of the Ollama model to use
@@ -103,15 +103,11 @@ class OllamaModel(BaseModel):
         self.base_url = "http://localhost:11434/api"  # Default Ollama API endpoint
         self.model_name = model_name
         # Pass a dummy API key to satisfy BaseModel
-        # Note: super().__init__() calls initialize_client() automatically
         super().__init__(api_key="LOCAL_OLLAMA")
+        self.initialize_client()
         
-    def initialize_client(self, **kwargs):
-        """Initialize the Ollama client connection
-
-        Args:
-            **kwargs: Additional arguments (kept for BaseModel compatibility)
-        """
+    def initialize_client(self):
+        """Initialize the Ollama client connection"""
         try:
             response = requests.get(f"{self.base_url}/tags")
             if response.status_code == 200:
@@ -145,24 +141,10 @@ class OllamaModel(BaseModel):
         return "ollama"
     
     def is_available(self):
-        """Check if the model is available
-
-        Checks both:
-        1. Ollama server is running
-        2. The specific model is installed
-
-        Returns:
-            bool: True if server is running AND model is installed, False otherwise
-        """
+        """Check if the model is available"""
         try:
             response = requests.get(f"{self.base_url}/tags")
-            if response.status_code != 200:
-                return False
-
-            # Check if the specific model is installed
-            models = response.json().get("models", [])
-            model_names = [model["name"] for model in models]
-            return self.model_name in model_names
+            return response.status_code == 200
         except:
             return False
     

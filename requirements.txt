@@ -48,7 +48,7 @@ googleapis-common-protos==1.72.0
 # AI Models
 groq==1.0.0
 openai==2.14.0
-ollamafreeapi==0.1.5  # Free access to 650+ AI models without API keys
+ollamafreeapi  # Free access to 650+ AI models without API keys
 
 # gRPC
 grpcio==1.76.0
@@ -78,12 +78,12 @@ markdown-it-py==4.0.0
 matplotlib-inline==0.2.1
 mdurl==0.1.2
 msgpack==1.1.2
-numba==0.60.0
-numpy==1.26.4
+numba==0.61.2
+numpy==2.2.6
 
 # Data Analysis
-pandas==2.2.2
-pandas-ta==0.3.14b0
+pandas==2.3.3
+pandas-ta==0.4.71b0
 
 # Parsing & Processing
 parsimonious==0.10.0
@@ -182,5 +182,6 @@ websockets==15.0
 # ============================================================================
 flask==3.0.0
 werkzeug==3.0.0
-flask-cors==4.0.0
+flask_cors
 TA-Lib-Precompiled==0.4.25
+numpy==1.26.4
