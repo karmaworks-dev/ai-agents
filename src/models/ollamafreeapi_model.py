@@ -207,8 +207,13 @@ class OllamaFreeAPIModel(BaseModel):
             # Handle rate limit errors
             if "rate" in error_str.lower() or "limit" in error_str.lower():
                 cprint("⚠️  OllamaFreeAPI rate limit reached (100 req/hour)", "yellow")
-                cprint("   💡 Wait a few minutes or switch to local Ollama", "cyan")
-                return None
+                cprint("   💡 Wait a few minutes or switch to 'gemini' provider (free tier)", "cyan")
+                return ModelResponse(
+                    content="",
+                    raw_response={"error": "Rate limit reached", "details": error_str},
+                    model_name=self.model_name,
+                    usage=None
+                )
 
             cprint(f"❌ OllamaFreeAPI error: {error_str}", "red")
             return ModelResponse(

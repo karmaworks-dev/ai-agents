@@ -11,10 +11,18 @@ from termcolor import cprint
 from .base_model import BaseModel, ModelResponse
 
 class OllamaModel(BaseModel):
-    """Implementation for local Ollama models"""
-    
+    """Implementation for local Ollama models
+
+    Requires Ollama to be running locally: ollama serve
+    Install models with: ollama pull <model_name>
+    """
+
+    # Ollama server configuration
+    DEFAULT_BASE_URL = "http://localhost:11434/api"
+
     # Available Ollama models - can be expanded based on what's installed locally
     # Dict format for consistency with other model providers
+    # Priority: Quantized DeepSeek models for trading (memory efficient)
     # To install: ollama pull <model_name>
     AVAILABLE_MODELS = {
         # ===== DeepSeek V3.2 (RECOMMENDED for Trading) =====
@@ -93,60 +101,109 @@ class OllamaModel(BaseModel):
         },
     }
     
-    def __init__(self, api_key=None, model_name="llama3.2"):
+    def __init__(self, api_key=None, model_name="deepseek-v3.1:671b-q4_K_M", base_url=None):
         """Initialize Ollama model
-        
+
         Args:
             api_key: Not used for Ollama but kept for compatibility
-            model_name: Name of the Ollama model to use
+            model_name: Name of the Ollama model to use (default: quantized DeepSeek V3.1)
+            base_url: Custom Ollama API endpoint (default: http://localhost:11434/api)
         """
-        self.base_url = "http://localhost:11434/api"  # Default Ollama API endpoint
+        self.base_url = base_url or self.DEFAULT_BASE_URL
         self.model_name = model_name
+        self._is_connected = False
+        self._connection_error = None
+        self._available_models = []
+
         # Pass a dummy API key to satisfy BaseModel
         super().__init__(api_key="LOCAL_OLLAMA")
         self.initialize_client()
-        
+
     def initialize_client(self):
-        """Initialize the Ollama client connection"""
+        """Initialize the Ollama client connection
+
+        This method handles connection errors gracefully without raising exceptions.
+        Check self._is_connected to verify connection status.
+        """
+        self._is_connected = False
+        self._connection_error = None
+
         try:
-            response = requests.get(f"{self.base_url}/tags")
+            response = requests.get(f"{self.base_url}/tags", timeout=5)
             if response.status_code == 200:
-                cprint(f"✨ Successfully connected to Ollama API", "green")
-                # Print available models
+                self._is_connected = True
+                cprint(f"✨ Connected to Ollama server at {self.base_url}", "green")
+
+                # Get available models
                 models = response.json().get("models", [])
                 if models:
-                    model_names = [model["name"] for model in models]
-                    cprint(f"📚 Available Ollama models: {model_names}", "cyan")
-                    if self.model_name not in model_names:
-                        cprint(f"⚠️ Model {self.model_name} not found! Please run:", "yellow")
-                        cprint(f"   ollama pull {self.model_name}", "yellow")
+                    self._available_models = [model["name"] for model in models]
+                    cprint(f"📚 {len(self._available_models)} models available locally", "cyan")
+
+                    # Check if requested model is available
+                    if self.model_name not in self._available_models:
+                        # Try partial match (e.g., "deepseek-v3.1" matches "deepseek-v3.1:671b")
+                        partial_matches = [m for m in self._available_models if self.model_name in m or m in self.model_name]
+                        if partial_matches:
+                            cprint(f"   Using closest match: {partial_matches[0]}", "cyan")
+                            self.model_name = partial_matches[0]
+                        else:
+                            cprint(f"⚠️ Model '{self.model_name}' not found locally!", "yellow")
+                            cprint(f"   Install it with: ollama pull {self.model_name}", "yellow")
+                            cprint(f"   Available models: {self._available_models[:5]}...", "cyan")
                 else:
-                    cprint("⚠️ No models found! Please pull the model:", "yellow")
+                    cprint("⚠️ No models installed! Pull a model first:", "yellow")
                     cprint(f"   ollama pull {self.model_name}", "yellow")
             else:
-                cprint(f"⚠️ Ollama API returned status code: {response.status_code}", "yellow")
-                raise ConnectionError(f"Ollama API returned status code: {response.status_code}")
+                self._connection_error = f"Ollama API returned status code: {response.status_code}"
+                cprint(f"⚠️ {self._connection_error}", "yellow")
+
         except requests.exceptions.ConnectionError:
-            cprint("❌ Could not connect to Ollama API - is the server running?", "red")
-            cprint("💡 Start the server with: ollama serve", "yellow")
-            raise
+            self._connection_error = "Ollama server not running"
+            cprint("⚠️ Ollama server not running at {self.base_url}", "yellow")
+            cprint("   💡 Start with: ollama serve", "cyan")
+            cprint("   💡 Or use 'ollamafreeapi' or 'gemini' providers instead (no local server needed)", "cyan")
+
+        except requests.exceptions.Timeout:
+            self._connection_error = "Connection timeout"
+            cprint("⚠️ Ollama server connection timed out", "yellow")
+
         except Exception as e:
-            cprint(f"❌ Could not connect to Ollama API: {str(e)}", "red")
-            cprint("💡 Make sure Ollama is running locally (ollama serve)", "yellow")
-            raise
+            self._connection_error = str(e)
+            cprint(f"⚠️ Ollama connection error: {str(e)}", "yellow")
 
     @property
     def model_type(self):
         """Return the type of model"""
         return "ollama"
-    
+
     def is_available(self):
-        """Check if the model is available"""
-        try:
-            response = requests.get(f"{self.base_url}/tags")
-            return response.status_code == 200
-        except:
-            return False
+        """Check if the Ollama server is connected and available"""
+        return self._is_connected
+
+    def get_connection_status(self):
+        """Get detailed connection status
+
+        Returns:
+            dict with keys:
+                - connected: bool
+                - error: str or None
+                - available_models: list of model names
+                - base_url: str
+        """
+        return {
+            "connected": self._is_connected,
+            "error": self._connection_error,
+            "available_models": self._available_models,
+            "base_url": self.base_url,
+            "current_model": self.model_name
+        }
+
+    def reconnect(self):
+        """Attempt to reconnect to the Ollama server"""
+        cprint("🔄 Attempting to reconnect to Ollama server...", "cyan")
+        self.initialize_client()
+        return self._is_connected
     
     def generate_response(self, system_prompt, user_content, temperature=0.7, max_tokens=None, **kwargs):
         """Generate a response using the Ollama model
@@ -159,8 +216,19 @@ class OllamaModel(BaseModel):
             **kwargs: Additional arguments (ignored, kept for compatibility)
 
         Returns:
-            Generated response text or None if failed
+            ModelResponse object (always returns ModelResponse, never None)
         """
+        # Check if connected, attempt reconnect if not
+        if not self._is_connected:
+            self.reconnect()
+            if not self._is_connected:
+                return ModelResponse(
+                    content="",
+                    raw_response={"error": f"Ollama server not available: {self._connection_error}"},
+                    model_name=self.model_name,
+                    usage=None
+                )
+
         try:
             # Format the prompt with system and user content
             messages = [
