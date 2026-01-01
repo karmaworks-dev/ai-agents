@@ -416,6 +416,64 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* Console Section */
+        .console-section {
+            margin-top: 24px;
+        }
+
+        .console-panel-full {
+            width: 100%;
+        }
+
+        .console-output {
+            background: #0d0d0d;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .console-line {
+            padding: 2px 0;
+            word-wrap: break-word;
+        }
+
+        .console-line.info {
+            color: var(--text-secondary);
+        }
+
+        .console-line.success {
+            color: var(--accent-green);
+        }
+
+        .console-line.error {
+            color: var(--accent-red);
+        }
+
+        .console-line.warning {
+            color: var(--accent-yellow);
+        }
+
+        .btn-small {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            padding: 4px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
     </style>
 </head>
 <body>
@@ -518,6 +576,22 @@ Examples:
                     </div>
                 </div>
             </div>
+
+            <!-- Backtest Console Section -->
+            <div class="console-section">
+                <div class="jobs-panel console-panel-full">
+                    <div class="panel-header">
+                        <h3>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-yellow)" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                            Backtest Console
+                        </h3>
+                        <button class="btn-small" onclick="clearBacktestConsole()">Clear</button>
+                    </div>
+                    <div class="console-output" id="backtest-console">
+                        <div class="console-line info">Backtest console ready...</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Results Modal -->
@@ -573,10 +647,16 @@ Examples:
         let pollInterval = null;
         let currentJobId = null;
 
+        // Console polling interval
+        let consoleInterval = null;
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadJobs();
             startPolling();
+            updateBacktestConsole();
+            // Poll backtest console every 2 seconds for real-time updates
+            consoleInterval = setInterval(updateBacktestConsole, 2000);
         });
 
         // Start polling for job updates
@@ -844,6 +924,49 @@ Examples:
                 closeResultsModal();
             }
         });
+
+        // Update backtest console with logs from server
+        async function updateBacktestConsole() {
+            try {
+                const response = await fetch('/api/backtest-console');
+                const logs = await response.json();
+
+                const consoleEl = document.getElementById('backtest-console');
+
+                if (logs.length === 0) {
+                    consoleEl.innerHTML = '<div class="console-line info">Backtest console ready...</div>';
+                    return;
+                }
+
+                // Keep last 100 logs and REVERSE (newest first)
+                const recentLogs = logs.slice(-100).reverse();
+
+                // Render logs with level classes
+                consoleEl.innerHTML = recentLogs.map(log => {
+                    const levelClass = log.level || 'info';
+                    return `<div class="console-line ${levelClass}">[${log.timestamp}] ${log.message}</div>`;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error updating backtest console:', error);
+            }
+        }
+
+        // Clear the backtest console
+        async function clearBacktestConsole() {
+            try {
+                const response = await fetch('/api/backtest-console/clear', { method: 'POST' });
+                const data = await response.json();
+
+                if (data.success) {
+                    // Immediately update the console display
+                    const consoleEl = document.getElementById('backtest-console');
+                    consoleEl.innerHTML = '<div class="console-line info">Console cleared</div>';
+                }
+            } catch (error) {
+                console.error('Error clearing backtest console:', error);
+            }
+        }
     </script>
 </body>
 </html>

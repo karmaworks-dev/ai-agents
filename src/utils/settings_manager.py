@@ -254,6 +254,11 @@ def get_available_models_for_provider(provider):
             'llama-3.3-70b-versatile': 'LLaMA 3.3 70B - Versatile',
             'llama-3.2-11b-vision-preview': 'LLaMA 3.2 11B Vision',
         },
+        # NOTE: Ollama and OllamaFreeAPI have known issues:
+        # - Ollama requires local server running (ollama serve)
+        # - OllamaFreeAPI service may have intermittent availability issues
+        # - TODO: Set up dedicated Ollama server for more reliable free inference
+        # - For now, recommend using Gemini (free tier) or DeepSeek API as alternatives
         'ollama': {
             # DeepSeek V3.2 - BEST for Trading (Local)
             'deepseek-v3.2': 'DeepSeek V3.2 ⚡ BEST',
@@ -269,6 +274,8 @@ def get_available_models_for_provider(provider):
             'qwen3:8b': 'Qwen3 8B - Fast',
             'mistral': 'Mistral - General',
         },
+        # NOTE: OllamaFreeAPI has known reliability issues
+        # TODO: Set up dedicated server for more reliable free model access
         'ollamafreeapi': {
             # DeepSeek V3.2 - BEST for Trading (FREE)
             'deepseek-v3.2': 'DeepSeek V3.2 ⚡ BEST (FREE)',
