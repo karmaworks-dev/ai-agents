@@ -607,17 +607,20 @@ class TradingAgent:
             columns=["token", "action", "confidence", "reasoning"]
         )
 
-            # --- StrategyAgent (non-executing) ---
-            try:
-                self.strategy_agent = StrategyAgent(execute_signals=False)
-                cprint("✅ StrategyAgent initialized (execute_signals=False)", "green")
-            except Exception as e:
-                self.strategy_agent = None
-                cprint(f"⚠️ StrategyAgent failed to initialize: {e}", "yellow")
+        # --- StrategyAgent (non-executing) ---
+        try:
+            self.strategy_agent = StrategyAgent(execute_signals=False)
+            cprint("✅ StrategyAgent initialized (execute_signals=False)", "green")
+        except Exception as e:
+            self.strategy_agent = None
+            cprint(f"⚠️ StrategyAgent failed to initialize: {e}", "yellow")
 
-            # Simple in-memory cache for enriched strategy contexts per token
-            self._strategy_context_cache = {}  # token -> {'data': ..., 'expires_at': datetime}
-            self.STRATEGY_CONTEXT_TTL = 120  # seconds (tune for your timeframe)
+        # Simple in-memory cache for enriched strategy contexts per token
+        # token -> {'data': ..., 'expires_at': datetime}
+        self._strategy_context_cache = {}
+        self.STRATEGY_CONTEXT_TTL = 120  # seconds (tune for your timeframe)
+
+
 
 
 
