@@ -14,13 +14,34 @@ class OllamaModel(BaseModel):
     """Implementation for local Ollama models"""
     
     # Available Ollama models - can be expanded based on what's installed locally
-    AVAILABLE_MODELS = [
-        "deepseek-r1",      # DeepSeek R1 through Ollama (7B by default)
-        "qwen3:8b",         # Qwen 3 8B model - fast reasoning model
-        "gemma:2b",         # Google's Gemma 2B model
-        "llama3.2",         # Meta's Llama 3.2 model - fast and efficient
-        # implement your own local models through hugging face/ollama here
-    ]
+    # Dict format for consistency with other model providers
+    AVAILABLE_MODELS = {
+        "deepseek-r1": {
+            "description": "DeepSeek R1 - Reasoning model (7B parameters, local)",
+            "parameters": "7B"
+        },
+        "deepseek-coder": {
+            "description": "DeepSeek Coder - STEM and code expert (6.7B parameters, local)",
+            "parameters": "6.7B"
+        },
+        "qwen3:8b": {
+            "description": "Qwen 3 8B - Fast reasoning model (8B parameters, local)",
+            "parameters": "8B"
+        },
+        "gemma:2b": {
+            "description": "Google Gemma 2B - Lightweight model (2B parameters, local)",
+            "parameters": "2B"
+        },
+        "llama3.2": {
+            "description": "Meta Llama 3.2 - Fast and efficient (default, local)",
+            "parameters": "70B"
+        },
+        "mistral": {
+            "description": "Mistral - General purpose model (7B parameters, local)",
+            "parameters": "7B"
+        },
+        # Add your own local models through Hugging Face/Ollama here
+    }
     
     def __init__(self, api_key=None, model_name="llama3.2"):
         """Initialize Ollama model
@@ -158,28 +179,21 @@ class OllamaModel(BaseModel):
 
     def get_model_parameters(self, model_name=None):
         """Get the parameter count for a specific model
-        
+
         Args:
             model_name: Name of the model to check (defaults to self.model_name)
-            
+
         Returns:
             String with parameter count (e.g., "7B", "13B") or None if not available
         """
         if model_name is None:
             model_name = self.model_name
-            
+
         try:
-            # For specific known models
-            known_models = {
-                "deepseek-r1": "7B",
-                "qwen3:8b": "8B",
-                "gemma:2b": "2B",
-                "llama3.2": "70B"
-            }
-            
-            if model_name in known_models:
-                return known_models[model_name]
-                
+            # Check AVAILABLE_MODELS dict for parameter info
+            if model_name in self.AVAILABLE_MODELS:
+                return self.AVAILABLE_MODELS[model_name].get("parameters", "Unknown")
+
             return "Unknown"
         except Exception as e:
             cprint(f"❌ Error getting model parameters: {str(e)}", "red")

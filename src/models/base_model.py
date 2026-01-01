@@ -6,10 +6,8 @@ This module defines the base interface for all AI models.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from dataclasses import dataclass
-import random
-import time
 from termcolor import cprint
 
 @dataclass
@@ -22,39 +20,37 @@ class ModelResponse:
     
 class BaseModel(ABC):
     """Base interface for all AI models"""
-    
+
     def __init__(self, api_key: str, **kwargs):
         self.api_key = api_key
         self.client = None
+        self.max_tokens = kwargs.get('max_tokens', 2000)  # Default max tokens
         self.initialize_client(**kwargs)
-    
+
     @abstractmethod
     def initialize_client(self, **kwargs) -> None:
         """Initialize the model's client"""
         pass
-    
+
     def generate_response(self, system_prompt, user_content, temperature=0.7, max_tokens=None):
-        """Generate a response from the model with no caching"""
+        """Generate a response from the model
+
+        Note: Subclasses should override this method. This base implementation
+        provides a simple fallback that does NOT modify prompts.
+        """
         try:
-            # Add random nonce to prevent caching
-            nonce = f"_{random.randint(1, 1000000)}"
-            current_time = int(time.time())
-            
-            # Each request will be unique
-            unique_content = f"{user_content}_{nonce}_{current_time}"
-            
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[
-                    {"role": "system", "content": f"{system_prompt}_{current_time}"},
-                    {"role": "user", "content": unique_content}
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
                 ],
                 temperature=temperature,
                 max_tokens=max_tokens if max_tokens else self.max_tokens
             )
-            
+
             return response.choices[0].message
-            
+
         except Exception as e:
             if "503" in str(e):
                 raise e  # Let the retry logic handle 503s

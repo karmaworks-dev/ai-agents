@@ -48,6 +48,7 @@ googleapis-common-protos==1.72.0
 # AI Models
 groq==1.0.0
 openai==2.14.0
+ollamafreeapi  # Free access to 650+ AI models without API keys
 
 # gRPC
 grpcio==1.76.0

@@ -18,6 +18,10 @@ GroqModel = None
 OpenAIModel = None
 GeminiModel = None
 DeepSeekModel = None
+OllamaModel = None
+OllamaFreeAPIModel = None
+XAIModel = None
+OpenRouterModel = None
 
 try:
     from .claude_model import ClaudeModel
@@ -44,6 +48,26 @@ try:
 except Exception as e:
     cprint(f"⚠️ Optional model 'deepseek_model' missing or failed to import: {e}", "yellow")
 
+try:
+    from .ollama_model import OllamaModel
+except Exception as e:
+    cprint(f"⚠️ Optional model 'ollama_model' missing or failed to import: {e}", "yellow")
+
+try:
+    from .ollamafreeapi_model import OllamaFreeAPIModel
+except Exception as e:
+    cprint(f"⚠️ Optional model 'ollamafreeapi_model' missing or failed to import: {e}", "yellow")
+
+try:
+    from .xai_model import XAIModel
+except Exception as e:
+    cprint(f"⚠️ Optional model 'xai_model' missing or failed to import: {e}", "yellow")
+
+try:
+    from .openrouter_model import OpenRouterModel
+except Exception as e:
+    cprint(f"⚠️ Optional model 'openrouter_model' missing or failed to import: {e}", "yellow")
+
 from .model_factory import model_factory
 
 __all__ = [
@@ -54,5 +78,9 @@ __all__ = [
     'OpenAIModel',
     'GeminiModel',
     'DeepSeekModel',
+    'OllamaModel',
+    'OllamaFreeAPIModel',
+    'XAIModel',
+    'OpenRouterModel',
     'model_factory'
 ]

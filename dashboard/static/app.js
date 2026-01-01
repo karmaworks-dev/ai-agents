@@ -693,6 +693,7 @@ function getProviderDisplayName(provider) {
         'perplexity': 'Perplexity',
         'groq': 'Groq',
         'ollama': 'Ollama (Local)',
+        'ollamafreeapi': 'OllamaFreeAPI (FREE)',
         'openrouter': 'OpenRouter'
     };
     return names[provider] || provider;

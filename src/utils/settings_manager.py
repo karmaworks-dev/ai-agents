@@ -241,9 +241,21 @@ def get_available_models_for_provider(provider):
         },
         'ollama': {
             'llama3.2': 'Llama 3.2 - Meta\'s balanced model (local)',
-            'deepseek-chat': 'DeepSeek Chat - Reasoning model (local)',
-            'qwen/qwen3:8b': 'Qwen3 8B - Fast reasoning (local)',
+            'deepseek-r1': 'DeepSeek R1 - Reasoning model (local)',
+            'deepseek-coder': 'DeepSeek Coder - STEM/code expert (local)',
+            'qwen3:8b': 'Qwen3 8B - Fast reasoning (local)',
             'mistral': 'Mistral - General purpose (local)',
+        },
+        'ollamafreeapi': {
+            'deepseek-coder:6.7b': 'DeepSeek Coder 6.7B - STEM/code expert (FREE) ⚡ Recommended',
+            'deepseek-coder:33b': 'DeepSeek Coder 33B - Advanced coding (FREE)',
+            'deepseek-r1:7b': 'DeepSeek R1 7B - Reasoning model (FREE)',
+            'llama3:8b-instruct': 'LLaMA 3 8B Instruct - General purpose (FREE)',
+            'llama3.3:70b': 'LLaMA 3.3 70B - Large model (FREE)',
+            'llama3:code': 'LLaMA 3 Code - Coding specialized (FREE)',
+            'mistral:7b-v0.2': 'Mistral 7B v0.2 - Efficient general (FREE)',
+            'qwen:7b-chat': 'Qwen 7B Chat - Alibaba chat model (FREE)',
+            'qwen:14b-chat': 'Qwen 14B Chat - Larger Qwen (FREE)',
         },
         'openrouter': {
             'google/gemini-2.5-flash': 'Gemini 2.5 Flash via OpenRouter',
@@ -257,7 +269,7 @@ def get_available_models_for_provider(provider):
 
 def validate_ai_provider(provider):
     """Validate AI provider"""
-    valid_providers = ['anthropic', 'openai', 'gemini', 'deepseek', 'xai', 'mistral', 'cohere', 'perplexity', 'groq', 'ollama', 'openrouter']
+    valid_providers = ['anthropic', 'openai', 'gemini', 'deepseek', 'xai', 'mistral', 'cohere', 'perplexity', 'groq', 'ollama', 'ollamafreeapi', 'openrouter']
     return provider in valid_providers
 
 

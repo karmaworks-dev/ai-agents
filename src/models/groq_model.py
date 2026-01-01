@@ -76,16 +76,18 @@ class GroqModel(BaseModel):
         }
     }
 
-    def __init__(self, api_key: str, model_name: str = "qwen/qwen3-32b", **kwargs):
+    def __init__(self, api_key: str, model_name: str = "mixtral-8x7b-32768", **kwargs):
         # Validate API key
         if not api_key or len(api_key.strip()) == 0:
             raise ValueError("API key is empty or None")
 
-        # Validate model name
+        # Validate model name - fall back to default if invalid
         if model_name not in self.AVAILABLE_MODELS:
-            raise ValueError(f"Invalid model name: {model_name}")
+            cprint(f"⚠️ Model {model_name} not in available models, using mixtral-8x7b-32768", "yellow")
+            model_name = "mixtral-8x7b-32768"
 
         self.model_name = model_name
+        self.max_tokens = kwargs.get('max_tokens', 2000)  # Default max tokens
         super().__init__(api_key, **kwargs)
     
     def initialize_client(self, **kwargs) -> None:

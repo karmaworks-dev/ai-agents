@@ -107,6 +107,7 @@ class OpenRouterModel(BaseModel):
             raise ValueError("API key is empty or None")
 
         self.model_name = model_name
+        self.max_tokens = kwargs.get('max_tokens', 2000)  # Default max tokens
         super().__init__(api_key, **kwargs)
 
     def initialize_client(self, **kwargs) -> None:

@@ -23,6 +23,7 @@ OpenAIModel = None
 GeminiModel = None
 DeepSeekModel = None
 OllamaModel = None
+OllamaFreeAPIModel = None
 XAIModel = None
 OpenRouterModel = None
 
@@ -57,6 +58,11 @@ except Exception as e:
     cprint(f"⚠️ ollama_model not available: {e}", "yellow")
 
 try:
+    from .ollamafreeapi_model import OllamaFreeAPIModel
+except Exception as e:
+    cprint(f"⚠️ ollamafreeapi_model not available: {e}", "yellow")
+
+try:
     from .xai_model import XAIModel
 except Exception as e:
     cprint(f"⚠️ xai_model not available: {e}", "yellow")
@@ -85,6 +91,8 @@ class ModelFactory:
         MODEL_IMPLEMENTATIONS["deepseek"] = DeepSeekModel
     if OllamaModel is not None:
         MODEL_IMPLEMENTATIONS["ollama"] = OllamaModel
+    if OllamaFreeAPIModel is not None:
+        MODEL_IMPLEMENTATIONS["ollamafreeapi"] = OllamaFreeAPIModel
     if XAIModel is not None:
         MODEL_IMPLEMENTATIONS["xai"] = XAIModel
     if OpenRouterModel is not None:
@@ -93,13 +101,14 @@ class ModelFactory:
     # Default models for each type
     DEFAULT_MODELS = {
         "claude": "claude-3-5-haiku-latest",  # Latest fast Claude model
-        "groq": "mixtral-8x7b-32768",        # Fast Mixtral model
+        "groq": "mixtral-8x7b-32768",        # Fast Mixtral model (production stable)
         "openai": "gpt-4o",                  # Latest GPT-4 Optimized
         "gemini": "gemini-2.5-flash",        # Fast Gemini 2.5 model
         "deepseek": "deepseek-reasoner",     # Enhanced reasoning model
-        "ollama": "llama3.2",                # Meta's Llama 3.2 - balanced performance
-        "xai": "grok-4-fast-reasoning",      # xAI's Grok 4 Fast with reasoning (best value: 2M context, cheap!)
-        "openrouter": "google/gemini-2.5-flash"  # 🌙 Moon Dev: OpenRouter default - fast & cheap Gemini!
+        "ollama": "llama3.2",                # Meta's Llama 3.2 - balanced performance (local)
+        "ollamafreeapi": "deepseek-coder:6.7b",  # 🌙 DeepSeek Coder - STEM/math expert (FREE!)
+        "xai": "grok-4-fast-reasoning",      # xAI's Grok 4 Fast with reasoning (2M context)
+        "openrouter": "google/gemini-2.5-flash"  # 🌙 OpenRouter - fast & cheap Gemini!
     }
     
     def __init__(self):
@@ -131,30 +140,79 @@ class ModelFactory:
                 except:
                     pass  # Silently skip failed models
 
-        # Initialize Ollama separately (no API key needed)
+        # Initialize Ollama separately (no API key needed - runs locally)
         try:
-            model_class = self.MODEL_IMPLEMENTATIONS["ollama"]
-            model_instance = model_class(model_name=self.DEFAULT_MODELS["ollama"])
+            if "ollama" in self.MODEL_IMPLEMENTATIONS:
+                model_class = self.MODEL_IMPLEMENTATIONS["ollama"]
+                model_instance = model_class(model_name=self.DEFAULT_MODELS["ollama"])
 
-            if model_instance.is_available():
-                self._models["ollama"] = model_instance
-                cprint(f"✅ {model_instance.model_name} ready", "green")
+                if model_instance.is_available():
+                    self._models["ollama"] = model_instance
+                    cprint(f"✅ {model_instance.model_name} ready", "green")
         except:
             pass  # Silently skip if Ollama not available
+
+        # Initialize OllamaFreeAPI separately (no API key needed - free cloud service)
+        try:
+            if "ollamafreeapi" in self.MODEL_IMPLEMENTATIONS:
+                model_class = self.MODEL_IMPLEMENTATIONS["ollamafreeapi"]
+                model_instance = model_class(model_name=self.DEFAULT_MODELS["ollamafreeapi"])
+
+                if model_instance.is_available():
+                    self._models["ollamafreeapi"] = model_instance
+                    cprint(f"✅ {model_instance.model_name} ready (FREE)", "green")
+        except:
+            pass  # Silently skip if OllamaFreeAPI not available
 
         if not self._models:
             cprint("⚠️ No AI models available - check API keys in .env", "yellow")
     
     def get_model(self, model_type: str, model_name: Optional[str] = None) -> Optional[BaseModel]:
-        """Get a specific model instance"""
-        if model_type not in self.MODEL_IMPLEMENTATIONS or model_type not in self._models:
+        """Get a specific model instance
+
+        This method handles dynamic model initialization - even if a model wasn't
+        available at startup (e.g., API key not set), it can be initialized later
+        when the key becomes available (e.g., via BYOK).
+        """
+        if model_type not in self.MODEL_IMPLEMENTATIONS:
+            cprint(f"⚠️ Unknown model type: {model_type}", "yellow")
+            return None
+
+        # If model not yet initialized, try to initialize it now
+        # This handles the case where API keys are added via BYOK after startup
+        if model_type not in self._models:
+            try:
+                # Special handling for models that don't need API keys
+                if model_type in ("ollama", "ollamafreeapi"):
+                    model_class = self.MODEL_IMPLEMENTATIONS[model_type]
+                    default_model = model_name or self.DEFAULT_MODELS.get(model_type)
+                    model_instance = model_class(model_name=default_model)
+                    if model_instance.is_available():
+                        self._models[model_type] = model_instance
+                        cprint(f"✅ {model_instance.model_name} initialized on-demand", "green")
+                else:
+                    # For API-based models, check if we now have an API key
+                    key_mapping = self._get_api_key_mapping()
+                    if model_type in key_mapping:
+                        if api_key := os.getenv(key_mapping[model_type]):
+                            model_class = self.MODEL_IMPLEMENTATIONS[model_type]
+                            default_model = model_name or self.DEFAULT_MODELS.get(model_type)
+                            model_instance = model_class(api_key, model_name=default_model)
+                            if model_instance.is_available():
+                                self._models[model_type] = model_instance
+                                cprint(f"✅ {model_instance.model_name} initialized on-demand", "green")
+            except Exception as e:
+                cprint(f"⚠️ Failed to initialize {model_type}: {e}", "yellow")
+                return None
+
+        if model_type not in self._models:
             return None
 
         model = self._models[model_type]
         if model_name and model.model_name != model_name:
             try:
-                # Special handling for Ollama models
-                if model_type == "ollama":
+                # Special handling for models that don't need API keys
+                if model_type in ("ollama", "ollamafreeapi"):
                     model = self.MODEL_IMPLEMENTATIONS[model_type](model_name=model_name)
                 else:
                     # For API-based models that need a key
@@ -177,7 +235,7 @@ class ModelFactory:
             "openai": "OPENAI_KEY",
             "gemini": "GEMINI_KEY",  # Re-enabled with Gemini 2.5 models
             "deepseek": "DEEPSEEK_KEY",
-            "xai": "GROK_API_KEY",  # Grok/xAI uses GROK_API_KEY
+            "xai": "XAI_KEY",  # xAI uses XAI_KEY (aligned with secrets_manager.py)
             "openrouter": "OPENROUTER_API_KEY",  # 🌙 Moon Dev: OpenRouter - 200+ models!
             # Ollama doesn't need an API key as it runs locally
         }

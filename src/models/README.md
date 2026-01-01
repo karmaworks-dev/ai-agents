@@ -61,28 +61,79 @@ Preview Models:
 - `deepseek-reasoner`: Enhanced reasoning model (Better for complex problem-solving)
 - `deepseek-r1`: DeepSeek's first-generation reasoning model (Excellent for trading strategies)
 
+### OllamaFreeAPI: 650+ FREE Models in the Cloud 🌐
+
+**No API key required!** Access 650+ models for free via the OllamaFreeAPI service.
+
+Installation:
+```bash
+pip install ollamafreeapi
+```
+
+Available Models (Recommended):
+- `deepseek-coder:6.7b`: **⚡ RECOMMENDED** - STEM and coding expert (6.7B parameters)
+- `deepseek-coder:33b`: Advanced coding model (33B parameters)
+- `deepseek-r1:7b`: Reasoning model (7B parameters)
+- `llama3:8b-instruct`: General purpose model (8B parameters)
+- `llama3.3:70b`: Large general model (70B parameters)
+- `llama3:code`: Coding specialized model
+- `mistral:7b-v0.2`: Efficient general model (7B parameters)
+- `qwen:7b-chat`: Alibaba chat model (7B parameters)
+- `qwen:14b-chat`: Larger Qwen model (14B parameters)
+
+Benefits:
+- 🆓 Completely FREE - no API keys needed!
+- 🌐 Cloud-hosted - no local setup required
+- 📊 650+ models available
+- 🧠 DeepSeek Coder for STEM/math tasks
+- ⚡ Fast inference
+
+Usage Example:
+```python
+from src.models import model_factory
+
+# Use DeepSeek Coder for STEM/coding (FREE & Recommended)
+model = model_factory.get_model("ollamafreeapi", "deepseek-coder:6.7b")
+
+# Or use LLaMA 3 for general tasks (FREE)
+model = model_factory.get_model("ollamafreeapi", "llama3:8b-instruct")
+```
+
+Rate Limits (Free Tier):
+- 100 requests per hour
+- 16k tokens per request
+
+---
+
 ### Local Ollama: Free, Fast, Private LLMs 🚀
+
+Run AI models locally on your machine for complete privacy and no rate limits.
 
 To get started with Ollama:
 1. Install Ollama: `curl https://ollama.ai/install.sh | sh`
 2. Start the server: `ollama serve`
-3. Pull our models:
+3. Pull models:
    ```bash
    ollama pull deepseek-r1      # DeepSeek R1 7B - shows thinking process
+   ollama pull deepseek-coder   # DeepSeek Coder - STEM/code expert
    ollama pull gemma:2b         # Google's Gemma 2B - fast responses
    ollama pull llama3.2         # Meta's Llama 3.2 - balanced performance
+   ollama pull mistral          # Mistral 7B - general purpose
    ```
 4. Check they're ready: `ollama list`
 
 Available Models:
-- `deepseek-r1`: Good for complex reasoning (7B parameters), shows thinking process with <think> tags
-- `gemma:2b`: Fast and efficient for simple tasks, great for high-volume processing
-- `llama3.2`: Balanced model good for most tasks, especially good at following instructions
+- `deepseek-r1`: Complex reasoning (7B), shows thinking process with <think> tags
+- `deepseek-coder`: STEM and code expert (6.7B)
+- `gemma:2b`: Fast and efficient for simple tasks
+- `llama3.2`: Balanced model, good at following instructions
+- `mistral`: General purpose model (7B)
+- `qwen3:8b`: Fast reasoning model (8B)
 
 Benefits:
 - 🚀 Free to use - no API costs
 - 🔒 Private - runs 100% local
-- ⚡ Fast responses
+- ⚡ No rate limits
 - 🤔 DeepSeek shows thinking process
 - 🛠️ Full model control
 
@@ -91,21 +142,14 @@ Usage Example:
 from src.models import model_factory
 
 # Initialize with Llama 3.2 for balanced performance
-model = factory.get_model("ollama", "llama3.2")
+model = model_factory.get_model("ollama", "llama3.2")
 
-# Or use DeepSeek R1 for complex reasoning
-model = factory.get_model("ollama", "deepseek-r1")
+# Or use DeepSeek Coder for STEM/coding
+model = model_factory.get_model("ollama", "deepseek-coder")
 
 # Or Gemma for faster responses
-model = factory.get_model("ollama", "gemma:2b")
-
-# For the most powerful reasoning, use DeepSeek API
-model = factory.get_model("deepseek", "deepseek-reasoner")
+model = model_factory.get_model("ollama", "gemma:2b")
 ```
-
-Interesting models for future use:
-- gemma - for quick llm tasks https://huggingface.co/google/gemma-2-9b
-- coqui - for voice locally https://huggingface.co/coqui/XTTS-v2
 
 ## 🚀 Usage Example
 
