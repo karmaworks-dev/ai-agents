@@ -218,8 +218,8 @@ MIN_CLOSE_CONFIDENCE = 70
 TP_THRESHOLD = 0.5
 
 # 🤖 SINGLE MODEL SETTINGS
-AI_MODEL_TYPE = 'gemini' 
-AI_MODEL_NAME = 'gemini-2.5-flash'  # Fast Gemini 2.5 model
+AI_MODEL_TYPE = 'ollamafreeapi' 
+AI_MODEL_NAME = 'qwen:14b-chat'  # Free Qwen 14B Model
 AI_TEMPERATURE = 0.3   
 AI_MAX_TOKENS = 3000   
 
