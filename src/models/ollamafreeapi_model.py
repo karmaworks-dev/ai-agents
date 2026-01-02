@@ -116,26 +116,32 @@ class OllamaFreeAPIModel(BaseModel):
         },
     }
 
-    def __init__(self, api_key=None, model_name="deepseek-v3.1:671b", **kwargs):
+    def __init__(self, api_key=None, model_name="deepseek-v3.2", **kwargs):
         """Initialize OllamaFreeAPI model
 
         Args:
             api_key: Not used - OllamaFreeAPI is free! Kept for compatibility.
-            model_name: Name of the model to use (default: deepseek-v3.1:671b - trading optimized)
+            model_name: Name of the model to use (default: deepseek-v3.2 - latest flagship)
         """
         self.model_name = model_name
         self.client = None
         self.max_tokens = kwargs.get('max_tokens', 2000)
+        self._is_valid_model = False
+        self._available_models_cache = []
         # Pass dummy API key to satisfy BaseModel
         super().__init__(api_key="FREE_API_NO_KEY_REQUIRED", **kwargs)
 
     def initialize_client(self, **kwargs) -> None:
-        """Initialize the OllamaFreeAPI client"""
+        """Initialize the OllamaFreeAPI client with model validation"""
+        self._is_valid_model = False
+
         try:
             from ollamafreeapi import OllamaFreeAPI
             self.client = OllamaFreeAPI()
 
-            # Test connection by listing models
+            # Validate model exists
+            self._validate_model()
+
             cprint(f"✨ OllamaFreeAPI connected - using {self.model_name}", "green")
             cprint("   💡 Free tier: 100 requests/hour, 16k tokens", "cyan")
 
@@ -145,6 +151,41 @@ class OllamaFreeAPIModel(BaseModel):
         except Exception as e:
             cprint(f"❌ Failed to initialize OllamaFreeAPI: {str(e)}", "red")
             self.client = None
+
+    def _validate_model(self):
+        """Validate that the requested model exists in OllamaFreeAPI"""
+        # Check against our known models first (faster)
+        if self.model_name in self.AVAILABLE_MODELS:
+            self._is_valid_model = True
+            return True
+
+        # Try to get available models from API
+        try:
+            if self.client:
+                api_models = self.client.list_models()
+                if api_models:
+                    self._available_models_cache = api_models
+                    if self.model_name in api_models:
+                        self._is_valid_model = True
+                        return True
+
+                    # Try partial match
+                    partial_matches = [m for m in api_models if self.model_name in m or m in self.model_name]
+                    if partial_matches:
+                        cprint(f"   📌 Using closest match: {partial_matches[0]}", "cyan")
+                        self.model_name = partial_matches[0]
+                        self._is_valid_model = True
+                        return True
+
+                    cprint(f"⚠️ Model '{self.model_name}' not found in OllamaFreeAPI", "yellow")
+                    cprint(f"   Available: {list(self.AVAILABLE_MODELS.keys())[:5]}...", "cyan")
+                    return False
+        except Exception as e:
+            cprint(f"⚠️ Could not validate model: {e}", "yellow")
+
+        # Fall back to assuming it's valid if in our list
+        self._is_valid_model = self.model_name in self.AVAILABLE_MODELS
+        return self._is_valid_model
 
     def generate_response(self, system_prompt, user_content, temperature=0.7, max_tokens=None, **kwargs):
         """Generate response using OllamaFreeAPI
@@ -207,8 +248,13 @@ class OllamaFreeAPIModel(BaseModel):
             # Handle rate limit errors
             if "rate" in error_str.lower() or "limit" in error_str.lower():
                 cprint("⚠️  OllamaFreeAPI rate limit reached (100 req/hour)", "yellow")
-                cprint("   💡 Wait a few minutes or switch to local Ollama", "cyan")
-                return None
+                cprint("   💡 Wait a few minutes or switch to 'gemini' provider (free tier)", "cyan")
+                return ModelResponse(
+                    content="",
+                    raw_response={"error": "Rate limit reached", "details": error_str},
+                    model_name=self.model_name,
+                    usage=None
+                )
 
             cprint(f"❌ OllamaFreeAPI error: {error_str}", "red")
             return ModelResponse(

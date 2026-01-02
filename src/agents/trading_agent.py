@@ -201,6 +201,12 @@ EXCHANGE = CONFIG_EXCHANGE.upper() if CONFIG_EXCHANGE else "HYPERLIQUID"
 # 🌊 AI MODE SELECTION (Default - can be overridden by user settings)
 DEFAULT_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Model
 
+# 🌊 SWARM CONSENSUS SETTINGS
+# Minimum confidence threshold for swarm consensus to execute a trade
+# If consensus confidence is below this threshold, default to NOTHING
+# Recommended: 55-65% (requires clear majority, not just a tie)
+MIN_SWARM_CONFIDENCE = 55  # 55% = requires at least slight majority (e.g., 3/5 models agree)
+
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
 
@@ -375,20 +381,26 @@ Remember:
 SWARM_TRADING_PROMPT = """You are an expert cryptocurrency trading AI analyzing market data.
 
 CRITICAL RULES:
-1. Your response MUST be EXACTLY one of these three words: Buy, Sell, or Do Nothing
-2. Do NOT provide any explanation, reasoning, or additional text
-3. Respond with ONLY the action word
-4. Do NOT show your thinking process or internal reasoning
+1. Your response MUST be in this exact format: ACTION | CONFIDENCE%
+2. ACTION must be one of: Buy, Sell, or Nothing
+3. CONFIDENCE must be a number from 0-100 indicating how confident you are
+4. Do NOT provide any explanation, reasoning, or additional text
+5. Do NOT show your thinking process or internal reasoning
 
 Analyze the market data below and decide:
 
 - "Buy" = Strong bullish signals, recommend opening/holding position
 - "Sell" = Bearish signals or major weakness, recommend closing position entirely
-- "Do Nothing" = Unclear/neutral signals, recommend holding current state unchanged
+- "Nothing" = Unclear/neutral signals, recommend holding current state unchanged
 
-IMPORTANT: "Do Nothing" means maintain current position (if we have one, keep it; if we don't, stay out)
+IMPORTANT: "Nothing" means maintain current position (if we have one, keep it; if we don't, stay out)
 
-RESPOND WITH ONLY ONE WORD: Buy, Sell, or Do Nothing"""
+RESPONSE FORMAT EXAMPLES:
+- Buy | 85%
+- Sell | 70%
+- Nothing | 45%
+
+RESPOND WITH ONLY: ACTION | CONFIDENCE%"""
 
 POSITION_ANALYSIS_PROMPT = """
 You are an expert crypto trading analyst. Your task is to analyze the user's open positions based on the provided position summaries and current market data.
@@ -747,54 +759,219 @@ FULL DATASET:
             return str(market_data)
 
     def _calculate_swarm_consensus(self, swarm_result):
-        """Calculate consensus from individual swarm responses"""
+        """
+        Calculate consensus from individual swarm responses with confidence weighting.
+
+        Key features:
+        1. Extracts both action AND confidence from each model
+        2. Logs individual votes with confidence (e.g., "Model 1 - BUY | 85%")
+        3. Calculates weighted average confidence for the majority action
+        4. Shows "TIED" instead of "NOTHING" when there's an actual tie
+        5. Clear frontend logging: "Swarm -> BUY | 62% sure"
+        """
         try:
-            votes = {"BUY": 0, "SELL": 0, "NOTHING": 0}
-            model_votes = []
+            # Track votes with confidence scores
+            votes = {"BUY": [], "SELL": [], "NOTHING": []}  # Lists of confidence scores
+            model_votes = []  # For detailed logging
+            model_index = 1
+
+            cprint("\n📊 Individual Model Votes:", "cyan", attrs=["bold"])
 
             for provider, data in swarm_result["responses"].items():
                 if not data["success"]:
+                    cprint(f"   ⚠️ Model {model_index} ({provider}): Failed (skipping)", "yellow")
+                    model_votes.append(f"Model {model_index} ({provider}): FAILED")
+                    model_index += 1
                     continue
 
-                response_text = data["response"].strip().upper()
+                response_text = data["response"].strip() if data["response"] else ""
+                response_upper = response_text.upper()
 
-                if "BUY" in response_text:
-                    votes["BUY"] += 1
-                    model_votes.append(f"{provider}: Buy")
-                elif "SELL" in response_text:
-                    votes["SELL"] += 1
-                    model_votes.append(f"{provider}: Sell")
+                # Parse vote AND confidence with new format
+                action, confidence = self._parse_vote_from_response(response_upper)
+
+                # Store confidence score for this action
+                votes[action].append(confidence)
+
+                # Format vote display
+                vote_display = f"Model {model_index} - {action} | {confidence}%"
+                model_votes.append(f"Model {model_index} ({provider}): {action} | {confidence}%")
+
+                # Color-coded console output
+                if action == "BUY":
+                    cprint(f"   ✅ {vote_display}", "green")
+                elif action == "SELL":
+                    cprint(f"   🔴 {vote_display}", "red")
                 else:
-                    votes["NOTHING"] += 1
-                    model_votes.append(f"{provider}: Do Nothing")
+                    cprint(f"   ⏸️ {vote_display}", "cyan")
 
-            total_votes = sum(votes.values())
+                model_index += 1
+
+            # Count total valid votes
+            total_votes = sum(len(v) for v in votes.values())
             if total_votes == 0:
+                cprint("❌ No valid responses from swarm - defaulting to NOTHING", "red")
+                add_console_log("Swarm -> NOTHING | 0% (no responses)", "warning")
                 return "NOTHING", 0, "No valid responses from swarm"
 
-            majority_action = max(votes, key=votes.get)
-            majority_count = votes[majority_action]
-            confidence = int((majority_count / total_votes) * 100)
+            # Calculate vote counts and average confidence per action
+            vote_counts = {action: len(confs) for action, confs in votes.items()}
+            avg_confidences = {}
+            for action, confs in votes.items():
+                if confs:
+                    avg_confidences[action] = int(sum(confs) / len(confs))
+                else:
+                    avg_confidences[action] = 0
 
-            reasoning = f"Swarm Consensus ({total_votes} models voted):\n"
-            reasoning += f"   Buy: {votes['BUY']} votes\n"
-            reasoning += f"   Sell: {votes['SELL']} votes\n"
-            reasoning += f"   Do Nothing: {votes['NOTHING']} votes\n\n"
-            reasoning += "Individual votes:\n"
-            reasoning += "\n".join(f"   - {vote}" for vote in model_votes)
-            reasoning += f"\n\nMajority decision: {majority_action} ({confidence}% consensus)"
+            # Find majority action
+            majority_action = max(vote_counts, key=vote_counts.get)
+            majority_count = vote_counts[majority_action]
+
+            # Check for ties - look at top 2 vote counts
+            sorted_counts = sorted(vote_counts.values(), reverse=True)
+            has_tie = len(sorted_counts) >= 2 and sorted_counts[0] == sorted_counts[1] and sorted_counts[0] > 0
+
+            if has_tie:
+                # Find which actions are tied
+                tied_actions = [a for a, c in vote_counts.items() if c == majority_count]
+                tie_avg_confidence = int(sum(avg_confidences[a] for a in tied_actions) / len(tied_actions))
+
+                cprint(
+                    f"\n⚠️ TIE DETECTED: {', '.join(tied_actions)} each have {majority_count} votes",
+                    "yellow",
+                    attrs=["bold"]
+                )
+
+                # Log to frontend with TIED status
+                add_console_log(f"Swarm -> TIED | {tie_avg_confidence}% sure", "warning")
+
+                reasoning = f"🌊 Swarm Consensus: TIED ({total_votes} models voted)\n\n"
+                reasoning += "Vote Breakdown:\n"
+                for action in ["BUY", "SELL", "NOTHING"]:
+                    count = vote_counts[action]
+                    avg = avg_confidences[action]
+                    reasoning += f"   {action}: {count} votes (avg {avg}% confidence)\n"
+                reasoning += f"\n⚠️ TIE between: {', '.join(tied_actions)}\n"
+                reasoning += "   → Conservative approach: No action taken\n\n"
+                reasoning += "Individual Votes:\n"
+                reasoning += "\n".join(f"   {vote}" for vote in model_votes)
+
+                return "NOTHING", tie_avg_confidence, reasoning
+
+            # Calculate final confidence as weighted average of winning action's votes
+            final_confidence = avg_confidences[majority_action]
+            vote_percentage = int((majority_count / total_votes) * 100)
+
+            # Check minimum confidence threshold
+            if final_confidence < MIN_SWARM_CONFIDENCE and majority_action != "NOTHING":
+                cprint(
+                    f"\n⚠️ LOW CONFIDENCE: {final_confidence}% < {MIN_SWARM_CONFIDENCE}% threshold",
+                    "yellow",
+                    attrs=["bold"]
+                )
+                cprint(f"   → Downgrading {majority_action} to NOTHING", "yellow")
+
+                add_console_log(f"Swarm -> NOTHING | {final_confidence}% (low confidence)", "warning")
+
+                reasoning = f"🌊 Swarm Consensus: LOW CONFIDENCE ({total_votes} models voted)\n\n"
+                reasoning += "Vote Breakdown:\n"
+                for action in ["BUY", "SELL", "NOTHING"]:
+                    count = vote_counts[action]
+                    avg = avg_confidences[action]
+                    reasoning += f"   {action}: {count} votes (avg {avg}% confidence)\n"
+                reasoning += f"\n⚠️ Confidence {final_confidence}% below {MIN_SWARM_CONFIDENCE}% threshold\n"
+                reasoning += f"   Original: {majority_action} | Downgraded to: NOTHING\n\n"
+                reasoning += "Individual Votes:\n"
+                reasoning += "\n".join(f"   {vote}" for vote in model_votes)
+
+                return "NOTHING", final_confidence, reasoning
+
+            # Normal case: clear majority above threshold
+            action_emoji = "📈" if majority_action == "BUY" else "📉" if majority_action == "SELL" else "⏸️"
 
             cprint(
-                f"\n🌊 Swarm Consensus: {majority_action} with {confidence}% agreement",
+                f"\n🌊 Swarm Consensus: {majority_action} | {final_confidence}% sure ({majority_count}/{total_votes} votes)",
                 "cyan",
                 attrs=["bold"]
             )
 
-            return majority_action, confidence, reasoning
+            # Log to frontend with clear format
+            add_console_log(f"Swarm -> {majority_action} | {final_confidence}% sure", "trade")
+
+            reasoning = f"🌊 Swarm Consensus: {majority_action} ({total_votes} models voted)\n\n"
+            reasoning += "Vote Breakdown:\n"
+            for action in ["BUY", "SELL", "NOTHING"]:
+                count = vote_counts[action]
+                avg = avg_confidences[action]
+                reasoning += f"   {action}: {count} votes (avg {avg}% confidence)\n"
+            reasoning += f"\n{action_emoji} Final Decision: {majority_action} | {final_confidence}% confident\n"
+            reasoning += f"   ({majority_count}/{total_votes} models agreed = {vote_percentage}% consensus)\n\n"
+            reasoning += "Individual Votes:\n"
+            reasoning += "\n".join(f"   {vote}" for vote in model_votes)
+
+            return majority_action, final_confidence, reasoning
 
         except Exception as e:
             cprint(f"❌ Error calculating swarm consensus: {e}", "red")
+            add_console_log(f"Swarm -> ERROR | 0%", "error")
             return "NOTHING", 0, f"Error calculating consensus: {str(e)}"
+
+    def _parse_vote_from_response(self, response_upper):
+        """
+        Parse a vote from the model response with strict matching.
+        Now extracts both action AND confidence score.
+
+        Expected format: "BUY | 85%" or "SELL | 70%" or "NOTHING | 45%"
+        Falls back to action-only parsing if confidence not found.
+
+        Returns: Tuple of (action: str, confidence: int)
+            - action: "BUY", "SELL", or "NOTHING"
+            - confidence: 0-100 (defaults to 50 if not found)
+        """
+        # Clean the response (remove extra whitespace, newlines)
+        response_clean = response_upper.strip().split('\n')[0].strip()
+
+        # Default confidence if not found
+        confidence = 50
+
+        # Try to parse "ACTION | XX%" format
+        if "|" in response_clean:
+            parts = response_clean.split("|")
+            action_part = parts[0].strip()
+            confidence_part = parts[1].strip() if len(parts) > 1 else ""
+
+            # Extract confidence number
+            confidence_match = re.search(r'(\d+)', confidence_part)
+            if confidence_match:
+                confidence = min(100, max(0, int(confidence_match.group(1))))
+
+            # Parse action from the first part
+            response_clean = action_part
+
+        # Parse action with priority matching
+        action = "NOTHING"
+
+        # Priority 1: Exact match
+        if response_clean in ["BUY"]:
+            action = "BUY"
+        elif response_clean in ["SELL"]:
+            action = "SELL"
+        elif response_clean in ["DO NOTHING", "NOTHING", "HOLD", "WAIT"]:
+            action = "NOTHING"
+        # Priority 2: Starts with action word
+        elif response_clean.startswith("BUY"):
+            action = "BUY"
+        elif response_clean.startswith("SELL"):
+            action = "SELL"
+        elif response_clean.startswith("DO NOTHING") or response_clean.startswith("NOTHING"):
+            action = "NOTHING"
+        # Priority 3: Contains action word (fallback)
+        elif "SELL" in response_clean:
+            action = "SELL"
+        elif "BUY" in response_clean:
+            action = "BUY"
+
+        return action, confidence
 
     def fetch_all_open_positions(self):
         """

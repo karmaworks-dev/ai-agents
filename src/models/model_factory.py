@@ -99,16 +99,17 @@ class ModelFactory:
         MODEL_IMPLEMENTATIONS["openrouter"] = OpenRouterModel
     
     # Default models for each type - OPTIMIZED FOR TRADING
+    # Priority: Quantized models for memory efficiency where available
     DEFAULT_MODELS = {
-        "claude": "claude-sonnet-4-5-20250929",  # Claude Sonnet 4.5 - balanced
-        "groq": "mixtral-8x7b-32768",            # Fast Mixtral model
-        "openai": "gpt-4.1-mini",                # GPT-4.1 Mini - efficient
-        "gemini": "gemini-2.5-flash",            # Fast Gemini 2.5 model
-        "deepseek": "deepseek-chat",             # DeepSeek V3 - general purpose
-        "ollama": "deepseek-v3.1:671b",          # DeepSeek V3.1 - best for trading (local)
-        "ollamafreeapi": "deepseek-v3.1:671b",   # DeepSeek V3.1 671B - TRADING OPTIMIZED (FREE!)
-        "xai": "grok-4-1-fast-reasoning",        # xAI's Grok 4.1 - best overall
-        "openrouter": "google/gemini-2.5-flash"  # OpenRouter - fast Gemini
+        "claude": "claude-sonnet-4-5-20250929",      # Claude Sonnet 4.5 - balanced
+        "groq": "llama-3.3-70b-versatile",           # Groq LLaMA 3.3 - FREE, fast
+        "openai": "gpt-4.1-mini",                    # GPT-4.1 Mini - efficient
+        "gemini": "gemini-2.5-flash",                # Gemini 2.5 Flash - FREE tier
+        "deepseek": "deepseek-chat",                 # DeepSeek V3 - general purpose
+        "ollama": "deepseek-v3.1:671b-q4_K_M",       # DeepSeek V3.1 Quantized - memory efficient
+        "ollamafreeapi": "deepseek-v3.2",            # DeepSeek V3.2 - FREE, latest flagship
+        "xai": "grok-4-1-fast-reasoning",            # xAI's Grok 4.1 - best overall
+        "openrouter": "google/gemini-2.5-flash"      # OpenRouter - fast Gemini
     }
     
     def __init__(self):
@@ -124,10 +125,16 @@ class ModelFactory:
         self._initialize_models()
     
     def _initialize_models(self):
-        """Initialize all available models"""
-        # Try to initialize each model type silently
+        """Initialize all available models with detailed logging"""
+        cprint("\n🤖 Initializing AI Model Factory...", "cyan", attrs=["bold"])
+
+        initialized_count = 0
+        failed_models = []
+
+        # Initialize API-based models (require API keys)
         for model_type, key_name in self._get_api_key_mapping().items():
-            if api_key := os.getenv(key_name):
+            api_key = os.getenv(key_name)
+            if api_key:
                 try:
                     if model_type in self.MODEL_IMPLEMENTATIONS:
                         model_class = self.MODEL_IMPLEMENTATIONS[model_type]
@@ -135,12 +142,17 @@ class ModelFactory:
 
                         if model_instance.is_available():
                             self._models[model_type] = model_instance
-                            # Just show the ready message
-                            cprint(f"✅ {model_instance.model_name} ready", "green")
-                except:
-                    pass  # Silently skip failed models
+                            cprint(f"   ✅ {model_type}: {model_instance.model_name}", "green")
+                            initialized_count += 1
+                        else:
+                            failed_models.append((model_type, "Model not available"))
+                except Exception as e:
+                    failed_models.append((model_type, str(e)[:50]))
+            else:
+                # Log missing API keys at debug level (not error - keys are optional)
+                pass  # User may not have all providers configured
 
-        # Initialize Ollama separately (no API key needed - runs locally)
+        # Initialize Ollama (no API key needed - runs locally)
         try:
             if "ollama" in self.MODEL_IMPLEMENTATIONS:
                 model_class = self.MODEL_IMPLEMENTATIONS["ollama"]
@@ -148,11 +160,15 @@ class ModelFactory:
 
                 if model_instance.is_available():
                     self._models["ollama"] = model_instance
-                    cprint(f"✅ {model_instance.model_name} ready", "green")
-        except:
-            pass  # Silently skip if Ollama not available
+                    cprint(f"   ✅ ollama: {model_instance.model_name} (local)", "green")
+                    initialized_count += 1
+                else:
+                    # Not an error - Ollama is optional
+                    cprint("   ⚪ ollama: Server not running (optional)", "white")
+        except Exception as e:
+            cprint(f"   ⚪ ollama: Not available - {str(e)[:30]}", "white")
 
-        # Initialize OllamaFreeAPI separately (no API key needed - free cloud service)
+        # Initialize OllamaFreeAPI (no API key needed - free cloud service)
         try:
             if "ollamafreeapi" in self.MODEL_IMPLEMENTATIONS:
                 model_class = self.MODEL_IMPLEMENTATIONS["ollamafreeapi"]
@@ -160,12 +176,30 @@ class ModelFactory:
 
                 if model_instance.is_available():
                     self._models["ollamafreeapi"] = model_instance
-                    cprint(f"✅ {model_instance.model_name} ready (FREE)", "green")
-        except:
-            pass  # Silently skip if OllamaFreeAPI not available
+                    cprint(f"   ✅ ollamafreeapi: {model_instance.model_name} (FREE)", "green")
+                    initialized_count += 1
+                else:
+                    cprint("   ⚪ ollamafreeapi: Service not available", "white")
+        except Exception as e:
+            cprint(f"   ⚪ ollamafreeapi: {str(e)[:30]}", "white")
+
+        # Summary
+        cprint(f"\n📊 Model Factory Summary:", "cyan")
+        cprint(f"   • {initialized_count} providers ready", "green" if initialized_count > 0 else "yellow")
+        cprint(f"   • {len(self.MODEL_IMPLEMENTATIONS)} providers supported", "cyan")
+
+        if failed_models:
+            cprint(f"   • {len(failed_models)} providers failed:", "yellow")
+            for model_type, error in failed_models[:3]:  # Show first 3 failures
+                cprint(f"     - {model_type}: {error}", "yellow")
 
         if not self._models:
-            cprint("⚠️ No AI models available - check API keys in .env", "yellow")
+            cprint("\n⚠️ No AI models available!", "yellow", attrs=["bold"])
+            cprint("   Check your .env file for API keys:", "yellow")
+            cprint("   • GEMINI_KEY (recommended - free tier)", "cyan")
+            cprint("   • ANTHROPIC_KEY, OPENAI_KEY, etc.", "cyan")
+        else:
+            cprint(f"\n✨ Ready to use: {', '.join(self._models.keys())}", "green")
     
     def get_model(self, model_type: str, model_name: Optional[str] = None) -> Optional[BaseModel]:
         """Get a specific model instance

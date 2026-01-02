@@ -242,47 +242,95 @@ def validate_settings_for_tier(username: str, settings: Dict) -> Tuple[bool, lis
     """
     Validate settings against user's tier limits.
     Returns (is_valid, list of error messages)
+
+    Error messages are user-friendly and include:
+    - What limit was exceeded
+    - Current tier name
+    - What tier is needed to unlock the feature
     """
     errors = []
     tier = get_user_tier(username)
     features = get_tier_features(tier)
+    tier_name = TIERS.get(tier, {}).get("display_name", tier.capitalize())
 
     # Check token count
     tokens = settings.get("monitored_tokens", [])
     max_tokens = features.get("max_tokens", 5)
     if len(tokens) > max_tokens:
-        errors.append(f"Your tier allows up to {max_tokens} tokens. Please upgrade to monitor more.")
+        errors.append({
+            "type": "token_limit",
+            "message": f"🎯 Token Limit: {tier_name} tier allows {max_tokens} tokens (you selected {len(tokens)})",
+            "suggestion": "Upgrade to Trader ($5/mo) for 10 tokens, or Pro ($20/mo) for unlimited",
+            "current": len(tokens),
+            "max": max_tokens
+        })
 
     # Check cycle time
     cycle_minutes = settings.get("sleep_minutes", 30)
     min_cycle = features.get("min_cycle_minutes", 5)
     if cycle_minutes < min_cycle:
-        errors.append(f"Your tier requires {min_cycle}+ minute cycles. Please upgrade for faster cycles.")
+        errors.append({
+            "type": "cycle_limit",
+            "message": f"⏱️ Cycle Time: {tier_name} tier requires {min_cycle}+ minute cycles",
+            "suggestion": "Upgrade to Pro ($20/mo) for faster cycle times",
+            "current": cycle_minutes,
+            "min": min_cycle
+        })
 
     # Check timeframe
     timeframe = settings.get("timeframe", "30m")
     allowed_timeframes = features.get("allowed_timeframes", [])
-    if timeframe not in allowed_timeframes:
-        errors.append(f"Timeframe '{timeframe}' not available on your tier.")
+    if allowed_timeframes and timeframe not in allowed_timeframes:
+        errors.append({
+            "type": "timeframe_limit",
+            "message": f"📊 Timeframe: '{timeframe}' not available on {tier_name} tier",
+            "suggestion": f"Available timeframes: {', '.join(allowed_timeframes)}",
+            "current": timeframe,
+            "allowed": allowed_timeframes
+        })
 
     # Check swarm mode
     swarm_mode = settings.get("swarm_mode", "single")
     if swarm_mode == "swarm" and not features.get("swarm_mode", False):
-        errors.append("Swarm mode requires Pro tier. Please upgrade to use multiple AI models.")
+        errors.append({
+            "type": "swarm_mode",
+            "message": f"🌊 Swarm Mode: Not available on {tier_name} tier",
+            "suggestion": "Upgrade to Pro ($20/mo) for multi-AI consensus trading with up to 6 models",
+            "required_tier": "pro"
+        })
 
     # Check swarm models count
     swarm_models = settings.get("swarm_models", [])
     max_swarm = features.get("max_swarm_models", 0)
     if len(swarm_models) > max_swarm:
-        errors.append(f"Your tier allows up to {max_swarm} swarm models.")
+        errors.append({
+            "type": "swarm_model_limit",
+            "message": f"🤖 Swarm Models: {tier_name} tier allows {max_swarm} models (you selected {len(swarm_models)})",
+            "suggestion": "Pro tier supports up to 6 swarm models for better consensus",
+            "current": len(swarm_models),
+            "max": max_swarm
+        })
 
     # Check provider access
-    provider = settings.get("ai_provider", "ollama")
+    provider = settings.get("ai_provider", "gemini")
     allowed_providers = features.get("providers", [])
     if allowed_providers != "all" and provider not in allowed_providers:
-        errors.append(f"Provider '{provider}' requires Trader tier or higher. Please upgrade or use Ollama.")
+        # Provide helpful alternatives
+        free_alternatives = ["gemini", "ollamafreeapi", "groq"]
+        available_free = [p for p in free_alternatives if p in allowed_providers or allowed_providers == "all"]
 
-    return len(errors) == 0, errors
+        errors.append({
+            "type": "provider_limit",
+            "message": f"🔒 AI Provider: '{provider}' not available on {tier_name} tier",
+            "suggestion": f"Free alternatives: {', '.join(available_free) if available_free else 'Upgrade to unlock more providers'}",
+            "current": provider,
+            "allowed": allowed_providers if allowed_providers != "all" else "all"
+        })
+
+    # Convert to simple string messages for backward compatibility
+    error_messages = [e["message"] if isinstance(e, dict) else e for e in errors]
+
+    return len(errors) == 0, error_messages
 
 
 def get_tier_comparison() -> list:

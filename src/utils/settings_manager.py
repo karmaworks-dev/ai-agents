@@ -95,21 +95,29 @@ DEFAULT_SETTINGS = {
     # Token settings - Main trading tokens
     "monitored_tokens": ["BTC", "ETH", "SOL", "LTC", "AAVE", "AVAX", "HYPE"],
 
-    # Main AI Model settings - DeepSeek V3.1 (FREE via OllamaFreeAPI)
-    # Option B: DeepSeek v3.2 (Recommended/Advanced) can be used by changing model
-    "ai_provider": "ollamafreeapi",   # FREE API - no key required
-    "ai_model": "deepseek-v3.1:671b", # DeepSeek V3.1 - stable trading model
-    "ai_temperature": 0.6,            # Official DeepSeek recommended "sweet spot"
-    "ai_max_tokens": 8000,            # Increased for multi-step reasoning
+    # Main AI Model settings - Gemini 2.5 Flash (FREE, reliable)
+    # Gemini has generous free tier with high reliability
+    "ai_provider": "gemini",          # FREE - reliable Google Gemini
+    "ai_model": "gemini-2.5-flash",   # Fast & capable, free tier
+    "ai_temperature": 0.5,            # Balanced for trading decisions
+    "ai_max_tokens": 2048,            # Sufficient for trading analysis
 
-    # Alternative configuration (Option B - DeepSeek V3.2):
-    # "ai_model": "deepseek-v3.2",   # Or "deepseek-v3.2:671b-q4_K_M"
-    # "ai_max_tokens": 8192,         # Optimized for V3.2
+    # Alternative configurations:
+    # Option A - OllamaFreeAPI (FREE but may have availability issues):
+    # "ai_provider": "ollamafreeapi",
+    # "ai_model": "deepseek-v3.1:671b",  # or "deepseek-v3.2"
+    #
+    # Option B - Local Ollama (requires 'ollama serve' running):
+    # "ai_provider": "ollama",
+    # "ai_model": "deepseek-v3.1:671b-q4_K_M",  # Quantized for memory efficiency
 
-    # Swarm AI Model settings (for multi-agent mode)
+    # Swarm AI Model settings (for multi-agent mode) - MAX 6 MODELS
+    # Defaults use FREE models to minimize costs
     "swarm_models": [
-        # DeepSeek for trading analysis
-        {"provider": "ollamafreeapi", "model": "deepseek-v3.1:671b", "temperature": 0.6, "max_tokens": 8000},
+        {"provider": "gemini", "model": "gemini-2.0-flash", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "gemini", "model": "gemini-2.5-flash", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "ollamafreeapi", "model": "deepseek-v3.2", "temperature": 0.5, "max_tokens": 2048},
+        {"provider": "ollamafreeapi", "model": "qwen/qwen3:8b", "temperature": 0.5, "max_tokens": 2048},
     ],
 
     # Timestamp

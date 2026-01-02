@@ -1958,6 +1958,115 @@ def health_check():
         "timestamp": datetime.now().isoformat()
     }), 200
 
+
+@app.route('/api/ollama/status')
+def ollama_status():
+    """Check Ollama server status and available models
+
+    Returns:
+        JSON with:
+        - connected: bool - whether Ollama server is reachable
+        - error: str or null - error message if not connected
+        - available_models: list - models installed locally
+        - base_url: str - Ollama API endpoint being used
+        - recommended_models: list - suggested models for trading
+    """
+    import requests as req
+
+    base_url = "http://localhost:11434/api"
+    status = {
+        "connected": False,
+        "error": None,
+        "available_models": [],
+        "base_url": base_url,
+        "recommended_models": [
+            "deepseek-v3.1:671b-q4_K_M",
+            "deepseek-v3.2:671b-q4_K_M",
+            "deepseek-r1:14b",
+            "qwen3:8b"
+        ]
+    }
+
+    try:
+        response = req.get(f"{base_url}/tags", timeout=5)
+        if response.status_code == 200:
+            status["connected"] = True
+            models = response.json().get("models", [])
+            status["available_models"] = [m["name"] for m in models]
+        else:
+            status["error"] = f"Ollama returned status code {response.status_code}"
+    except req.exceptions.ConnectionError:
+        status["error"] = "Ollama server not running. Start with: ollama serve"
+    except req.exceptions.Timeout:
+        status["error"] = "Ollama server connection timed out"
+    except Exception as e:
+        status["error"] = str(e)
+
+    return jsonify(status), 200 if status["connected"] else 503
+
+
+@app.route('/api/ollama/pull', methods=['POST'])
+def ollama_pull_model():
+    """Trigger pulling a model on the Ollama server
+
+    Request body:
+        { "model": "deepseek-v3.1:671b-q4_K_M" }
+
+    Returns:
+        JSON with status of the pull request
+    """
+    import requests as req
+
+    data = request.get_json() or {}
+    model_name = data.get("model", "deepseek-v3.1:671b-q4_K_M")
+
+    base_url = "http://localhost:11434/api"
+
+    try:
+        # Check if Ollama is running
+        check = req.get(f"{base_url}/tags", timeout=5)
+        if check.status_code != 200:
+            return jsonify({
+                "success": False,
+                "error": "Ollama server not available"
+            }), 503
+
+        # Start the pull (this is async on Ollama's side)
+        response = req.post(
+            f"{base_url}/pull",
+            json={"name": model_name, "stream": False},
+            timeout=300  # 5 minute timeout for model download
+        )
+
+        if response.status_code == 200:
+            return jsonify({
+                "success": True,
+                "model": model_name,
+                "message": f"Model {model_name} pulled successfully"
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": f"Failed to pull model: {response.text}"
+            }), 400
+
+    except req.exceptions.ConnectionError:
+        return jsonify({
+            "success": False,
+            "error": "Ollama server not running. Start with: ollama serve"
+        }), 503
+    except req.exceptions.Timeout:
+        return jsonify({
+            "success": False,
+            "error": "Model pull timed out (model may still be downloading)"
+        }), 408
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 # ============================================================================
 # GRACEFUL SHUTDOWN HANDLER
 # ============================================================================

@@ -609,9 +609,12 @@ function applySettings(settings) {
 
     document.getElementById('main-max-tokens').value = settings.ai_max_tokens || 2000;
 
-    // Swarm models
+    // Swarm models - Default to 4 FREE models for cost-effective consensus
     swarmModels = settings.swarm_models || [
-        { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.3, max_tokens: 2000 }
+        { provider: 'gemini', model: 'gemini-2.0-flash', temperature: 0.5, max_tokens: 2048 },
+        { provider: 'gemini', model: 'gemini-2.5-flash', temperature: 0.5, max_tokens: 2048 },
+        { provider: 'ollamafreeapi', model: 'deepseek-v3.2', temperature: 0.5, max_tokens: 2048 },
+        { provider: 'ollamafreeapi', model: 'qwen/qwen3:8b', temperature: 0.5, max_tokens: 2048 }
     ];
     renderSwarmModels();
 }
