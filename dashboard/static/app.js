@@ -190,19 +190,19 @@ function updateAgentBadge(isRunning, isExecuting = false) {
     }
 }
 
-// Update positions display with 7 fields
+// Update positions display with 7 fields + action buttons
 
 function updatePositions(positions) {
     const container = document.getElementById('positions');
     const badge = document.getElementById('position-count');
-    
+
     badge.textContent = positions.length;
-    
+
     if (!positions || positions.length === 0) {
         container.innerHTML = '<div class="empty-state">No open positions</div>';
         return;
     }
-    
+
     container.innerHTML = positions.map(pos => `
         <div class="position">
             <div class="position-item">
@@ -235,8 +235,78 @@ function updatePositions(positions) {
                     ${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%
                 </span>
             </div>
+            <div class="position-item position-actions">
+                <span class="position-label">Actions</span>
+                <div class="position-buttons">
+                    <button class="btn-position-action btn-close-position" onclick="closePosition('${pos.symbol}')" title="Close Position">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        Close
+                    </button>
+                    <a href="https://app.hyperliquid.xyz/trade/${pos.symbol}" target="_blank" class="btn-position-action btn-chart" title="View Chart on Exchange">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+                        Chart
+                    </a>
+                </div>
+            </div>
         </div>
     `).join('');
+}
+
+// Close a single position
+async function closePosition(symbol) {
+    if (!confirm(`Are you sure you want to close your ${symbol} position?`)) {
+        return;
+    }
+
+    try {
+        addConsoleMessage(`Closing ${symbol} position...`, 'info');
+
+        const response = await fetch(`/api/close-position/${symbol}`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            addConsoleMessage(`${symbol} position closed successfully`, 'success');
+            updateDashboard(); // Refresh data
+        } else {
+            addConsoleMessage(`Failed to close ${symbol}: ${data.message}`, 'error');
+        }
+    } catch (error) {
+        addConsoleMessage(`Error closing ${symbol}: ${error.message}`, 'error');
+    }
+}
+
+// Close all positions - Panic Kill Switch
+async function closeAllPositions() {
+    if (!confirm('PANIC CLOSE: Are you sure you want to close ALL open positions immediately?')) {
+        return;
+    }
+
+    // Double confirmation for safety
+    if (!confirm('This action cannot be undone. Confirm to close ALL positions at market price.')) {
+        return;
+    }
+
+    try {
+        addConsoleMessage('PANIC CLOSE - Closing all positions...', 'warning');
+
+        const response = await fetch('/api/close-all-positions', {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            addConsoleMessage(data.message, 'success');
+            updateDashboard(); // Refresh data
+        } else {
+            addConsoleMessage(`Failed to close all positions: ${data.message}`, 'error');
+        }
+    } catch (error) {
+        addConsoleMessage(`Error closing all positions: ${error.message}`, 'error');
+    }
 }
 
 // Update trades history (simplified plain text)

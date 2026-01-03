@@ -468,6 +468,90 @@ html, body {
     color: var(--accent-red);
 }
 
+/* Position Action Buttons */
+.position-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.position-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-position-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--font-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    border: 1px solid transparent;
+}
+
+.btn-close-position {
+    background: rgba(255, 71, 87, 0.1);
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
+.btn-close-position:hover {
+    background: var(--accent-red);
+    color: white;
+}
+
+.btn-chart {
+    background: rgba(33, 150, 243, 0.1);
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.btn-chart:hover {
+    background: var(--accent-blue);
+    color: white;
+}
+
+/* Positions Footer with Close All Button */
+.positions-footer {
+    padding-top: 12px;
+    margin-top: 12px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.btn-close-all {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid var(--accent-red);
+    border-radius: 6px;
+    color: var(--accent-red);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-close-all:hover {
+    background: var(--accent-red);
+    color: white;
+    box-shadow: 0 0 15px rgba(255, 71, 87, 0.3);
+}
+
+.btn-close-all svg {
+    opacity: 0.9;
+}
+
 /* Console Output */
 .console-output {
     flex: 1;
