@@ -1057,9 +1057,9 @@ FULL DATASET:
         if POSITION_TRACKER_AVAILABLE and exchange_positions:
             added, removed = sync_with_exchange_positions(exchange_positions)
             if added > 0:
-                cprint(f"   📝 Added {added} position(s) to tracker", "yellow")
+                cprint(f"   📍 Added {added} position(s) to tracker", "yellow")
             if removed > 0:
-                cprint(f"   📝 Removed {removed} stale position(s) from tracker", "yellow")
+                cprint(f"   📍 Removed {removed} stale position(s) from tracker", "yellow")
 
         if not all_positions:
             cprint("   ℹ️  No open positions found", "yellow")
@@ -1257,7 +1257,7 @@ Return ONLY valid JSON with the following structure:
             # APPLY 3-TIER VALIDATION SYSTEM
             # ============================================================================
             cprint("\n" + "=" * 60, "magenta")
-            cprint("🛡️  APPLYING 3-TIER VALIDATION SYSTEM", "white", "on_magenta", attrs=["bold"])
+            cprint("🛡️ APPLYING 3-TIER VALIDATION SYSTEM", "white", "on_magenta", attrs=["bold"])
             cprint("=" * 60, "magenta")
 
             validated_decisions = {}
@@ -1290,8 +1290,8 @@ Return ONLY valid JSON with the following structure:
                             "reasoning": f"AI suggested CLOSE but validation BLOCKED: {validation_reason}",
                             "confidence": 0
                         }
-                        cprint(f"🛡️  {symbol}: CLOSE BLOCKED → FORCING KEEP", "cyan", attrs=["bold"])
-                        add_console_log(f"🛡️  {symbol} CLOSE blocked: {validation_reason}", "warning")
+                        cprint(f"🛡️ {symbol}: CLOSE BLOCKED → FORCING KEEP", "cyan", attrs=["bold"])
+                        add_console_log(f"🛡️ {symbol} CLOSE blocked: {validation_reason}", "warning")
                 else:
                     # KEEP decision - no validation needed
                     validated_decisions[symbol] = decision
@@ -1347,7 +1347,7 @@ Return ONLY valid JSON with the following structure:
                     # Remove from position tracker
                     if POSITION_TRACKER_AVAILABLE:
                         remove_position(symbol)
-                        cprint(f"   📝 Removed {symbol} from position tracker", "cyan")
+                        cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
 
                     cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
                     add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
@@ -1628,7 +1628,7 @@ Return ONLY valid JSON with the following structure:
             return None
 
 
-      def allocate_portfolio(self):
+    def allocate_portfolio(self):
         """
         Smart Portfolio Allocation - Equal Distribution
 
@@ -1805,7 +1805,7 @@ Return ONLY valid JSON with the following structure:
             traceback.print_exc()
             return None
 
-      def execute_allocations(self, allocation_dict):
+    def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position (supports LONG and SHORT)"""
         try:
             print("\n🚀 Executing portfolio allocations...")
@@ -2018,7 +2018,7 @@ Return ONLY valid JSON with the following structure:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
 
                 elif action == "NOTHING":
-                    cprint("⏸️  DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
+                    cprint("⏸️ DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
                     cprint(f"💎 Maintaining ${current_position:.2f} position", "cyan")
                     positions_held += 1
 
@@ -2032,15 +2032,15 @@ Return ONLY valid JSON with the following structure:
                 # Do NOT open new positions here - that happens in execute_allocations()
                 if action == "SELL":
                     if LONG_ONLY:
-                        cprint("⏭️  SELL signal but NO POSITION to close", "white", "on_blue")
+                        cprint("⭐ SELL signal but NO POSITION to close", "white", "on_blue")
                         cprint("📊 LONG ONLY mode: Can't open short", "cyan")
                     else:
                         cprint("📉 SELL signal with no position - SHORT will be opened in allocation phase", "white", "on_yellow")
                         cprint("📊 Deferring to portfolio allocation for proper sizing", "cyan")
 
                 elif action == "NOTHING":
-                    cprint("⏸️  DO NOTHING signal with no position", "white", "on_blue")
-                    cprint("⏭️  Staying out of market", "cyan")
+                    cprint("⏸️ DO NOTHING signal with no position", "white", "on_blue")
+                    cprint("⭐ Staying out of market", "cyan")
 
                 else:
                     # BUY signal with no position - defer to allocation phase
@@ -2112,7 +2112,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
             # STEP 0: DISPLAY VOLUME INTELLIGENCE SUMMARY (if available)
@@ -2130,7 +2130,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
             # STEP 2: COLLECT MARKET DATA
@@ -2151,7 +2151,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
             # STEP 3: AI ANALYZES OPEN POSITIONS
@@ -2161,14 +2161,14 @@ Return ONLY valid JSON with the following structure:
 
                 # Check for stop signal before executing closes
                 if self.should_stop():
-                    add_console_log("⏹️ Stop signal received - skipping position closes", "warning")
+                    add_console_log("ℹ️ Stop signal received - skipping position closes", "warning")
                     return
 
                 self.execute_position_closes(close_decisions)
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
             # STEP 4: REFETCH POSITIONS & MARKET DATA AFTER CLOSURES
@@ -2184,7 +2184,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
             # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
@@ -2192,7 +2192,7 @@ Return ONLY valid JSON with the following structure:
             for token, data in market_data.items():
                 # Check for stop signal before each token analysis
                 if self.should_stop():
-                    add_console_log(f"⏹️ Stop signal received - stopping analysis at {token}", "warning")
+                    add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
                     return
 
                 cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
@@ -2209,7 +2209,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal before showing recommendations
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - aborting cycle", "warning")
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
             # STEP 6: SHOW RECOMMENDATIONS
@@ -2219,7 +2219,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal before executing trades
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - skipping trade execution", "warning")
+                add_console_log("ℹ️ Stop signal received - skipping trade execution", "warning")
                 return
 
             # ================================================================
@@ -2237,7 +2237,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - skipping portfolio allocation", "warning")
+                add_console_log("ℹ️ Stop signal received - skipping portfolio allocation", "warning")
                 return
 
             # PHASE 2: RE-EVALUATE - Refresh balance and verify closures
@@ -2265,7 +2265,7 @@ Return ONLY valid JSON with the following structure:
 
             # Check for stop signal
             if self.should_stop():
-                add_console_log("⏹️ Stop signal received - skipping new position opening", "warning")
+                add_console_log("ℹ️ Stop signal received - skipping new position opening", "warning")
                 return
 
             # PHASE 3: OPEN - Open new positions with fresh balance
@@ -2291,7 +2291,7 @@ Return ONLY valid JSON with the following structure:
                 if allocation:
                     # Check for stop signal before executing allocations
                     if self.should_stop():
-                        add_console_log("⏹️ Stop signal received - skipping allocations", "warning")
+                        add_console_log("ℹ️ Stop signal received - skipping allocations", "warning")
                         return
 
                     cprint("\n💼 Executing portfolio allocations with fresh balance...", "white", "on_blue")
@@ -2344,7 +2344,6 @@ Return ONLY valid JSON with the following structure:
             cprint(f"\n❌ Error in trading cycle: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
-
 
 def main():
     """Main function - simple cycle every X minutes"""
