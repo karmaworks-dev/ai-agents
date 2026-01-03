@@ -126,7 +126,7 @@ class ModelFactory:
     
     def _initialize_models(self):
         """Initialize all available models with detailed logging"""
-        cprint("\n🤖 Initializing AI Model Factory...", "cyan", attrs=["bold"])
+        cprint("\n⚙️ Initializing AI Model Factory...", "cyan", attrs=["bold"])
 
         initialized_count = 0
         failed_models = []

@@ -91,9 +91,9 @@ def main():
             question = input("\n❓ Ask a question: ")
             if question.lower() in ['exit', 'quit']:
                 break
-                
+
             if question.strip():
-                print("\n🤖 Answer:")
+                print("\nAnswer:")
                 print(agent.ask(question))
             
         except KeyboardInterrupt:

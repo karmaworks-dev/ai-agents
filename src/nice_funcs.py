@@ -1168,8 +1168,8 @@ def breakout_entry(symbol, BREAKOUT_PRICE):
 
 
 def ai_entry(symbol, amount):
-    """AI agent entry function for Moon Dev's trading system 🤖"""
-    cprint("🤖 Moon Dev's AI Trading Agent initiating position entry...", "white", "on_blue")
+    """AI agent entry function for Moon Dev's trading system"""
+    cprint("🧠 Moon Dev's AI Trading Agent initiating position entry...", "white", "on_blue")
     
     # amount passed in is the target allocation (up to 30% of usd_size)
     target_size = amount  # This could be up to $3 (30% of $10)
@@ -1204,7 +1204,7 @@ def ai_entry(symbol, amount):
     cprint(f"💫 Entry chunk size: {chunk_size} (chunking ${size_needed:.2f} into ${max_usd_order_size:.2f} orders)", "white", "on_blue")
 
     while pos_usd < (target_size * 0.97):
-        cprint(f"🤖 AI Agent executing entry for {symbol[:8]}...", "white", "on_blue")
+        cprint(f"🧠 AI Agent executing entry for {symbol[:8]}...", "white", "on_blue")
         print(f"Position: {round(pos,2)} | Price: {round(price,8)} | USD Value: ${round(pos_usd,2)}")
 
         try:

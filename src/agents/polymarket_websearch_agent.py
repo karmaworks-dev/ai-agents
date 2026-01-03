@@ -189,7 +189,7 @@ class PolymarketWebSearchAgent:
 
         # Initialize AI models
         if USE_SWARM_MODE:
-            cprint("🤖 Using SWARM MODE - Multiple AI models", "green")
+            cprint("♾️ Using SWARM MODE - Multiple AI models", "green")
             try:
                 from src.agents.swarm_agent import SwarmAgent
                 self.swarm = SwarmAgent()
@@ -200,7 +200,7 @@ class PolymarketWebSearchAgent:
                 self.swarm = None
                 self.model = ModelFactory().get_model(AI_MODEL_PROVIDER, AI_MODEL_NAME)
         else:
-            cprint(f"🤖 Using single model: {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}", "green")
+            cprint(f"🧠 Using single model: {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}", "green")
             self.model = ModelFactory().get_model(AI_MODEL_PROVIDER, AI_MODEL_NAME)
             self.swarm = None
 
@@ -686,7 +686,7 @@ Provide a concise summary of the most relevant and recent information."""
         analysis_timestamp = datetime.now().isoformat()
 
         cprint("\n" + "="*80, "magenta")
-        cprint(f"🤖 AI Analysis WITH WEB SEARCH - Analyzing {len(markets_to_analyze)} markets", "magenta", attrs=['bold'])
+        cprint(f"📊 AI Analysis WITH WEB SEARCH - Analyzing {len(markets_to_analyze)} markets", "magenta", attrs=['bold'])
         cprint(f"📊 Analysis Run ID: {analysis_run_id}", "magenta")
         cprint("🔍 Web search ENABLED for each market!", "yellow", attrs=['bold'])
         cprint("="*80, "magenta")
@@ -805,7 +805,7 @@ Provide predictions for each market in the specified format."""
 
             # Display individual AI responses
             cprint("="*80, "yellow")
-            cprint("🤖 Individual AI Predictions (WITH WEB CONTEXT)", "yellow", attrs=['bold'])
+            cprint("📊 Individual AI Predictions (WITH WEB CONTEXT)", "yellow", attrs=['bold'])
             cprint("="*80, "yellow")
 
             for model_name, model_data in swarm_result.get('responses', {}).items():
@@ -848,7 +848,7 @@ Provide predictions for each market in the specified format."""
 
         else:
             # Single model mode
-            cprint(f"\n🤖 Getting predictions from {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}...\n", "cyan")
+            cprint(f"\n🧠 Getting predictions from {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}...\n", "cyan")
 
             try:
                 response = self.model.generate_response(
@@ -1280,7 +1280,7 @@ Provide predictions for each market in the specified format."""
     def analysis_cycle(self):
         """Check if we have enough eligible markets and run AI analysis"""
         cprint("\n" + "="*80, "magenta")
-        cprint("🤖 ANALYSIS CYCLE CHECK (Web Search Enabled)", "magenta", attrs=['bold'])
+        cprint("📊 ANALYSIS CYCLE CHECK (Web Search Enabled)", "magenta", attrs=['bold'])
         cprint(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "magenta")
         cprint("="*80 + "\n", "magenta")
 
@@ -1358,7 +1358,7 @@ Provide predictions for each market in the specified format."""
 
     def analysis_loop(self):
         """Continuously check for new markets to analyze"""
-        cprint("\n🤖 ANALYSIS THREAD STARTED (Web Search Enabled)", "magenta", attrs=['bold'])
+        cprint("\n📊 ANALYSIS THREAD STARTED (Web Search Enabled)", "magenta", attrs=['bold'])
         cprint(f"🧠 Running first analysis NOW, then every {ANALYSIS_CHECK_INTERVAL_SECONDS}s\n", "magenta")
 
         while True:
@@ -1392,7 +1392,7 @@ def main():
     cprint(f"   3. AI swarm analyzes markets WITH web context", "cyan")
     cprint(f"   4. Consensus picks are generated with better info!", "cyan")
     cprint("")
-    cprint(f"🤖 AI Mode: {'SWARM (7 models)' if USE_SWARM_MODE else 'Single Model'}", "yellow")
+    cprint(f"🧠 AI Mode: {'SWARM (7 models)' if USE_SWARM_MODE else 'Single Model'}", "yellow")
     cprint("="*80 + "\n", "cyan")
 
     # Initialize agent

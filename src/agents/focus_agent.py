@@ -168,7 +168,7 @@ class FocusAgent:
         if MODEL_TYPE == "openai":
             model_info = self.model.AVAILABLE_MODELS.get(MODEL_NAME, {})
             cprint(f"\n💫 Moon Dev's Focus Agent using OpenAI!", "green")
-            cprint(f"🤖 Model: {model_info.get('description', '')}", "cyan")
+            cprint(f"🧠 Model: {model_info.get('description', '')}", "cyan")
             cprint(f"💰 Pricing:", "yellow")
             cprint(f"  ├─ Input: {model_info.get('input_price', '')}", "yellow")
             cprint(f"  └─ Output: {model_info.get('output_price', '')}", "yellow")
@@ -456,7 +456,7 @@ class FocusAgent:
 
     def _announce_model(self):
         """Announce current model with eye-catching formatting"""
-        model_msg = f"🤖 TESTING MODEL: {MODEL_TYPE.upper()} - {MODEL_NAME} 🤖"
+        model_msg = f"✅ TESTING MODEL: {MODEL_TYPE.upper()} - {MODEL_NAME}"
         border = "=" * (len(model_msg) + 4)
         
         cprint(border, 'white', 'on_green', attrs=['bold'])

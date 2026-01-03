@@ -4,7 +4,7 @@ Comprehensive list of available models from all providers
 """
 
 # ============================================================================
-# 🤖 GOOGLE GEMINI MODELS
+# GOOGLE GEMINI MODELS
 # ============================================================================
 GEMINI_MODELS = {
     # ⭐ Best for Trading (Fast & Effective)

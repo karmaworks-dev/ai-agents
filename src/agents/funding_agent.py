@@ -192,14 +192,14 @@ class FundingAgent(BaseAgent):
                 funding_data=funding_data.to_string()
             )
             
-            print(f"\n🤖 Analyzing {symbol} with AI...")
+            print(f"\n📊 Analyzing {symbol} with AI...")
             
             # Use either DeepSeek or Claude based on active_model
             if "deepseek" in self.active_model.lower():
                 if not self.deepseek_client:
                     raise ValueError("🚨 DeepSeek client not initialized - check DEEPSEEK_KEY")
                     
-                cprint(f"🤖 Using DeepSeek model: {self.active_model}", "cyan")
+                cprint(f"🧠 Using DeepSeek model: {self.active_model}", "cyan")
                 response = self.deepseek_client.chat.completions.create(
                     model="deepseek-chat",
                     messages=[
@@ -212,7 +212,7 @@ class FundingAgent(BaseAgent):
                 )
                 content = response.choices[0].message.content.strip()
             else:
-                cprint(f"🤖 Using Claude model: {self.active_model}", "cyan")
+                cprint(f"🧠 Using Claude model: {self.active_model}", "cyan")
                 response = self.anthropic_client.messages.create(
                     model=self.active_model,
                     max_tokens=AI_MAX_TOKENS if AI_MAX_TOKENS > 0 else config.AI_MAX_TOKENS,

@@ -119,7 +119,7 @@ class ComplianceAgent:
     def _init_model(self):
         """Initialize AI model for compliance analysis"""
         try:
-            cprint(f"🤖 Initializing {MODEL_CONFIG['type']} model: {MODEL_CONFIG['name']}...", "cyan")
+            cprint(f"⚙️ Initializing {MODEL_CONFIG['type']} model: {MODEL_CONFIG['name']}...", "cyan")
             
             model = model_factory.get_model(MODEL_CONFIG["type"], MODEL_CONFIG["name"])
             if not model:

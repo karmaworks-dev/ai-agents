@@ -71,7 +71,7 @@ class RiskAgent(BaseAgent):
         self.ai_temperature = config.AI_TEMPERATURE
         self.ai_max_tokens = config.AI_MAX_TOKENS
 
-        print(f"🤖 Using AI Model: {self.ai_model}")
+        print(f"🧠 Using AI Model: {self.ai_model}")
         
         # Get API keys
         openai_key = os.getenv("OPENAI_KEY")
@@ -272,9 +272,9 @@ class RiskAgent(BaseAgent):
                 limit_type=limit_type,
                 position_data=json.dumps(position_data, indent=2)
             )
-            
-            cprint("🤖 AI Agent analyzing market data...", "white", "on_green")
-            
+
+            cprint("📊 AI Agent analyzing market data...", "white", "on_green")
+
             # Use DeepSeek if configured
             if self.deepseek_client and MODEL_OVERRIDE.lower() == "deepseek-chat":
                 print("🚀 Using DeepSeek for analysis...")
@@ -291,7 +291,7 @@ class RiskAgent(BaseAgent):
                 response_text = response.choices[0].message.content.strip()
             else:
                 # Use Claude as before
-                print("🤖 Using Claude for analysis...")
+                print("🧠 Using Claude for analysis...")
                 message = self.client.messages.create(
                     model=self.ai_model,
                     max_tokens=self.ai_max_tokens,
@@ -318,9 +318,9 @@ class RiskAgent(BaseAgent):
             cprint("\n🧠 Risk Agent Analysis:", "white", "on_blue")
             cprint(f"Using model: {'DeepSeek' if self.deepseek_client else 'Claude'}", "white", "on_blue")
             print(response_text)
-            
+
             if self.override_active:
-                cprint("\n🤖 Risk Agent suggests keeping positions open", "white", "on_yellow")
+                cprint("\nRisk Agent suggests keeping positions open", "white", "on_yellow")
             else:
                 cprint("\n🛡️ Risk Agent recommends closing positions", "white", "on_red")
             
@@ -507,7 +507,7 @@ Then explain your reasoning.
                 response_text = response.choices[0].message.content.strip()
             else:
                 # Use Claude as before
-                print("🤖 Using Claude for analysis...")
+                print("🧠 Using Claude for analysis...")
                 message = self.client.messages.create(
                     model=self.ai_model,
                     max_tokens=self.ai_max_tokens,
@@ -524,8 +524,8 @@ Then explain your reasoning.
                 match = re.search(r"text='([^']*)'", response_text)
                 if match:
                     response_text = match.group(1)
-            
-            print("\n🤖 AI Risk Assessment:")
+
+            print("\nAI Risk Assessment:")
             print("=" * 50)
             print(f"Using model: {'DeepSeek' if self.deepseek_client else 'Claude'}")
             print(response_text)

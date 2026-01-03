@@ -511,7 +511,7 @@ async def test_conversation():
         
         # Initial greeting
         greeting = "Hello! This is Moon Dev's AI Assistant. How can I help you today? 🌙"
-        cprint("\n🤖 AI: " + greeting, "green")
+        cprint("\nAI: " + greeting, "green")
         await play_audio_response(greeting)
         
         # Initialize recorder
@@ -563,7 +563,7 @@ Key guidelines:
                         
                         # Prepare "I don't know" response
                         unknown_response = "I apologize, but I'm not sure about that. Please email moon@algotradecamp.com and we'll get that answered ASAP! 🌙✉️"
-                        cprint("\n🤖 AI: " + unknown_response, "yellow")
+                        cprint("\nAI: " + unknown_response, "yellow")
                         
                         # Play response and add to history
                         if unknown_response.strip():
@@ -588,9 +588,9 @@ Key guidelines:
                     
                     # Add to conversation history
                     conversation_history.append({"role": "user", "content": transcript})
-                    
+
                     # Get AI response
-                    cprint("\n🤖 AI:", "green")
+                    cprint("\nAI:", "green")
                     
                     response = openai.chat.completions.create(
                         model=MODEL_NAME,
@@ -674,9 +674,9 @@ if not TESTING_MODE:
                     {"role": "user", "content": speech_result}
                 ]
             )
-            
+
             response_text = response.choices[0].message.content
-            cprint(f"\n🤖 AI response: {response_text}", "green")
+            cprint(f"\nAI response: {response_text}", "green")
             
             # Create response
             resp = VoiceResponse()

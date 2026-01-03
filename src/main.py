@@ -57,7 +57,7 @@ def run_agents():
 
                 # Run Trading Analysis
                 if trading_agent:
-                    cprint("\n🤖 Running Trading Analysis...", "cyan")
+                    cprint("\n📊 Running Trading Analysis...", "cyan")
                     trading_agent.run()
 
                 # Run Strategy Analysis
@@ -72,7 +72,7 @@ def run_agents():
 
                 # Run CopyBot Analysis
                 if copybot_agent:
-                    cprint("\n🤖 Running CopyBot Portfolio Analysis...", "cyan")
+                    cprint("\n📊 Running CopyBot Portfolio Analysis...", "cyan")
                     copybot_agent.run_analysis_cycle()
 
                 # Run Sentiment Analysis

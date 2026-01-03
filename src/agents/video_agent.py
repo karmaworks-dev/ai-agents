@@ -239,7 +239,7 @@ def video_worker(worker_id: int):
     Args:
         worker_id: Worker thread identifier
     """
-    cprint(f"🤖 Worker {worker_id} started", "green")
+    cprint(f"Worker {worker_id} started", "green")
 
     while True:
         try:

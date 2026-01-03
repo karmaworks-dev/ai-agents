@@ -257,7 +257,7 @@ def enhance_prompt_with_glm(user_prompt: str) -> Optional[str]:
         }
 
         cprint("\n⏳ Calling AI to enhance your prompt...", "cyan")
-        animate_loading(2, "AI is thinking", "🤖")
+        animate_loading(2, "AI is thinking", "🧠")
 
         # Make the API request
         response = requests.post(url, headers=headers, json=payload, timeout=60)

@@ -294,7 +294,7 @@ def validate_settings_for_tier(username: str, settings: Dict) -> Tuple[bool, lis
     if swarm_mode == "swarm" and not features.get("swarm_mode", False):
         errors.append({
             "type": "swarm_mode",
-            "message": f"🌊 Swarm Mode: Not available on {tier_name} tier",
+            "message": f"♾️ Swarm Mode: Not available on {tier_name} tier",
             "suggestion": "Upgrade to Pro ($20/mo) for multi-AI consensus trading with up to 6 models",
             "required_tier": "pro"
         })
@@ -305,7 +305,7 @@ def validate_settings_for_tier(username: str, settings: Dict) -> Tuple[bool, lis
     if len(swarm_models) > max_swarm:
         errors.append({
             "type": "swarm_model_limit",
-            "message": f"🤖 Swarm Models: {tier_name} tier allows {max_swarm} models (you selected {len(swarm_models)})",
+            "message": f"♾️ Swarm Models: {tier_name} tier allows {max_swarm} models (you selected {len(swarm_models)})",
             "suggestion": "Pro tier supports up to 6 swarm models for better consensus",
             "current": len(swarm_models),
             "max": max_swarm

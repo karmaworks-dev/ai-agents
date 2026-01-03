@@ -131,14 +131,14 @@ MODEL_OVERRIDE = "deepseek-chat"  # Set to "0" to disable override
 # DeepSeek API settings
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # Base URL for DeepSeek API
 
-# 🤖 Agent Model Selection
+# Agent Model Selection
 AI_MODEL = MODEL_OVERRIDE if MODEL_OVERRIDE != "0" else config.AI_MODEL
 
 # 📁 File Paths
 DISCOVERED_TOKENS_FILE = Path("src/data/discovered_tokens.csv")  # Input from token discovery script
 AI_ANALYSIS_FILE = Path("src/data/ai_analysis.csv")  # AI analysis results
 
-# 🤖 CoinGecko API Settings
+# CoinGecko API Settings
 COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY")
 COINGECKO_BASE_URL = "https://pro-api.coingecko.com/api/v3"
 TEMP_DATA_DIR = Path("src/data/temp_data")
@@ -149,7 +149,7 @@ PARALLEL_PROCESSES = 50        # Number of parallel processes to run
 MIN_VOLUME_USD = 100_000      # Minimum 24h volume to analyze
 MAX_MARKET_CAP = 10_000_000   # Maximum market cap to include in analysis (10M)
 
-# 🤖 Tokens to Ignore
+# Tokens to Ignore
 DO_NOT_ANALYZE = [
     'tether',           # USDT - Stablecoin
     'usdt',            # Alternative USDT id
@@ -164,7 +164,7 @@ DO_NOT_ANALYZE = [
     'wrapped-solana',  # WSOL
 ]
 
-# 🤖 Agent Prompts
+# Agent Prompts
 AGENT_ONE_PROMPT = """
 You are the Technical Analysis Agent 📊
 Your role is to analyze token metrics, market data, and OHLCV patterns.
@@ -229,7 +229,7 @@ class AIAgent:
                 raise ValueError("🚨 DEEPSEEK_KEY not found in environment variables!")
         else:
             self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_KEY"))
-            print(f"🤖 {name} using Claude model: {model}")
+            print(f"🧠 {name} using Claude model: {model}")
             
         self.memory_file = Path(f"src/data/agent_memory/{name.lower().replace(' ', '_')}.json")
         self.memory = {
@@ -591,7 +591,7 @@ class ListingArbSystem:
             if agent_one_analysis.startswith("Error analyzing token"):
                 print("⚠️ Agent One analysis failed, skipping token")
                 return
-            
+
             # Extract Agent One's recommendation
             agent_one_rec = "DO NOTHING"  # Default
             if "RECOMMENDATION:" in agent_one_analysis:
@@ -600,8 +600,8 @@ class ListingArbSystem:
                     agent_one_rec = "BUY"
                 elif "SELL" in rec_line:
                     agent_one_rec = "SELL"
-            
-            print("\n🤖 Agent One Analysis:")
+
+            print("\nAgent One Analysis:")
             cprint(agent_one_analysis, "white", "on_green")
             
             # Agent Two responds
@@ -609,7 +609,7 @@ class ListingArbSystem:
             if agent_two_analysis.startswith("Error analyzing token"):
                 print("⚠️ Agent Two analysis failed, skipping token")
                 return
-            
+
             # Extract Agent Two's recommendation
             agent_two_rec = "DO NOTHING"  # Default
             if "RECOMMENDATION:" in agent_two_analysis:
@@ -618,8 +618,8 @@ class ListingArbSystem:
                     agent_two_rec = "BUY"
                 elif "SELL" in rec_line:
                     agent_two_rec = "SELL"
-            
-            print("\n🤖 Agent Two Analysis:")
+
+            print("\nAgent Two Analysis:")
             cprint(agent_two_analysis, "white", "on_green")
             
             # Save analysis to log

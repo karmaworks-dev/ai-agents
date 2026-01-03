@@ -51,7 +51,7 @@ The agent runs every hour and:
 - Saves BUY/SELL/DO NOTHING recommendations
 
 =================================
-🤖 AI ANALYSIS PROMPT
+AI ANALYSIS PROMPT
 =================================
 You can modify this prompt to customize the AI analysis:
 """
@@ -120,7 +120,7 @@ MODEL_OVERRIDE = "deepseek-chat"  # Set to "0" to disable override
 # DeepSeek API settings
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # Base URL for DeepSeek API
 
-# 🤖 Agent Model Selection
+# Agent Model Selection
 AI_MODEL = MODEL_OVERRIDE if MODEL_OVERRIDE != "0" else config.AI_MODEL
 
 # Configuration
@@ -182,7 +182,7 @@ class NewOrTopAgent:
                 raise ValueError("🚨 DEEPSEEK_KEY not found in environment variables!")
         else:
             self.ai_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_KEY"))
-            print(f"🤖 Using Claude model: {AI_MODEL}")
+            print(f"🧠 Using Claude model: {AI_MODEL}")
             
         print_fancy("🌙 Moon Dev's New & Top Coins Agent Initialized! 🌟", 'white', 'on_magenta', SUCCESS_EMOJIS)
         
@@ -330,7 +330,7 @@ class NewOrTopAgent:
             
             # Clear visual break before new analysis
             print("\n" + "=" * 80)
-            print_fancy("🤖 STARTING NEW AI ANALYSIS 🤖", 'white', 'on_magenta', ROCKET_SEQUENCE)
+            print_fancy("📊 STARTING NEW AI ANALYSIS", 'white', 'on_magenta', ROCKET_SEQUENCE)
             print("=" * 80)
             
             # Show which coin we're analyzing

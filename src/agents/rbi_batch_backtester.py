@@ -78,7 +78,7 @@ def derive_strategy_name(file_path: Path, content: str) -> str:
 
 
 def generate_backtest_code(strategy_text: str) -> str:
-    print("🤖🌙 MOON DEV: Generating backtest code via BACKTEST prompt... 🚀")
+    print("🌙 MOON DEV: Generating backtest code via BACKTEST prompt... 🚀")
     content = f"Create a backtest for this strategy:\n\n{strategy_text}"
 
     # Try primary config, then fallbacks if unavailable

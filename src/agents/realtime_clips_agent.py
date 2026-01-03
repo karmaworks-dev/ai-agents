@@ -168,7 +168,7 @@ class RealtimeClipsAgent:
         self.base_clips_folder.mkdir(exist_ok=True)
 
         # Initialize AI model via model factory
-        cprint(f"\n🤖 Initializing AI model: {AI_MODEL_TYPE}", "cyan")
+        cprint(f"\n⚙️ Initializing AI model: {AI_MODEL_TYPE}", "cyan")
         self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
 
         if not self.model:
@@ -349,7 +349,7 @@ class RealtimeClipsAgent:
         preview = transcript_text[:300]
         cprint(f"📄 Transcript preview:", "cyan")
         cprint(f"   \"{preview}...\"", "yellow")
-        cprint(f"\n🤖 Asking {self.model.model_name} to rate this clip (1-5)...", "cyan")
+        cprint(f"\n🧠 Asking {self.model.model_name} to rate this clip (1-5)...", "cyan")
 
         try:
             result_text = self.chat_with_ai(
@@ -361,7 +361,7 @@ class RealtimeClipsAgent:
                 cprint("❌ AI returned no response", "red")
                 return False, "AI decision failed"
 
-            cprint(f"\n🤖 AI Response:", "cyan")
+            cprint(f"\nAI Response:", "cyan")
             cprint(f"   {result_text}", "yellow")
 
             # Parse JSON response (remove markdown if present)
@@ -416,7 +416,7 @@ class RealtimeClipsAgent:
 
         transcript_text = "\n".join(formatted)
 
-        cprint(f"🤖 Sending transcript to {self.model.model_name} for analysis...", "cyan")
+        cprint(f"📊 Sending transcript to {self.model.model_name} for analysis...", "cyan")
         cprint(f"📊 Total duration: {transcript_obj['segments'][-1]['end']:.1f} seconds", "cyan")
 
         try:
@@ -429,7 +429,7 @@ class RealtimeClipsAgent:
                 cprint("❌ AI returned no response", "red")
                 return None, None
 
-            cprint(f"\n🤖 AI Response:", "cyan")
+            cprint(f"\nAI Response:", "cyan")
             cprint(f"   {result_text}", "yellow")
 
             # Parse JSON response (remove markdown if present)
@@ -472,7 +472,7 @@ class RealtimeClipsAgent:
         preview = transcript_text[:200]
         cprint(f"📄 Transcript preview for title generation:", "cyan")
         cprint(f"   \"{preview}...\"", "yellow")
-        cprint(f"\n🤖 Asking {self.model.model_name} for a short title...", "cyan")
+        cprint(f"\n🧠 Asking {self.model.model_name} for a short title...", "cyan")
 
         try:
             title = self.chat_with_ai(
@@ -724,8 +724,8 @@ Example:
   🎬 STARTING CLIP CREATION WORKFLOW
   ✂️  Extracting 5-minute clip...
   🎤 Transcribing audio...
-  🤖 AI finding best segment...
-  🤖 AI Rating: 5/5 ⭐⭐⭐⭐⭐ - Great content!
+  📊 AI finding best segment...
+  AI Rating: 5/5 ⭐⭐⭐⭐⭐ - Great content!
   ✅ DECISION: CLIP IT!
   📝 Generating title...
   ✅ CLIP COMPLETE: building_order_flow_features_for_hft_bots.mov
@@ -745,7 +745,7 @@ Model Factory Integration:
 def autonomous_mode(agent):
     """Run autonomous clipping mode - checks every N minutes, AI decides if worth clipping."""
     cprint("\n" + "="*80, "green")
-    cprint("🤖 AUTONOMOUS MODE ACTIVATED", "green")
+    cprint("✅ AUTONOMOUS MODE ACTIVATED", "green")
     cprint("="*80, "green")
     cprint(f"⏰ Checking every {AUTO_CLIP_INTERVAL} seconds ({AUTO_CLIP_INTERVAL/60:.0f} minutes)", "cyan")
     cprint(f"✂️  Analyzing last {AUTO_CLIP_LENGTH} minutes each time", "cyan")
@@ -753,7 +753,7 @@ def autonomous_mode(agent):
     cprint(f"📁 Recording folder: {agent.obs_folder}", "cyan")
     cprint(f"💾 Clips saved to: {agent.base_clips_folder}", "cyan")
     cprint(f"📅 Today's folder: {agent.clips_folder.name}", "cyan")
-    cprint(f"🤖 AI Model: {agent.model.model_name}", "cyan")
+    cprint(f"🧠 AI Model: {agent.model.model_name}", "cyan")
     cprint("\n💡 Press Ctrl+C to stop\n", "yellow")
 
     check_count = 0

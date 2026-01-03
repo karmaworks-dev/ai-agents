@@ -88,8 +88,8 @@ DAYSBACK_4_DATA = 1
 DATA_TIMEFRAME = '5m' 
 SAVE_OHLCV_DATA = False 
 
-# AI Model Settings 🤖
-# 🤖 AI AGENT SETTINGS - DeepSeek Trading Optimized
+# AI Model Settings
+# AI AGENT SETTINGS - DeepSeek Trading Optimized
 #
 # Available DeepSeek models (via OllamaFreeAPI - FREE!):
 # - "deepseek-v3.2" - Latest flagship (671B) ⚡ BEST
@@ -102,7 +102,7 @@ SAVE_OHLCV_DATA = False
 # - OpenAI: "gpt-4.1-mini" - Efficient
 # - Gemini: "gemini-2.5-flash" - Fast
 
-# 🤖 SINGLE MODEL SETTINGS (DEFAULT: DeepSeek V3.1)
+# SINGLE MODEL SETTINGS (DEFAULT: DeepSeek V3.1)
 AI_MODEL_TYPE = 'ollamafreeapi'      # FREE API - no key required
 AI_MODEL = "deepseek-v3.1:671b"       # ⚡ RECOMMENDED for trading
 AI_MAX_TOKENS = 8000                  # Increased for multi-step reasoning

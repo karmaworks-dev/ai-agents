@@ -68,14 +68,14 @@ Remember:
 """
 
 class CopyBotAgent:
-    """Moon Dev's CopyBot Agent 🤖"""
-    
+    """Moon Dev's CopyBot Agent"""
+
     def __init__(self):
         """Initialize the CopyBot agent with LLM"""
         load_dotenv()
         self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_KEY"))
         self.recommendations_df = pd.DataFrame(columns=['token', 'action', 'confidence', 'reasoning'])
-        print("🤖 Moon Dev's CopyBot Agent initialized!")
+        print("Moon Dev's CopyBot Agent initialized!")
         
     def load_portfolio_data(self):
         """Load current copybot portfolio data"""
@@ -138,9 +138,9 @@ class CopyBotAgent:
             print("=" * 80)
             print(full_prompt)
             print("=" * 80)
-            
-            print("\n🤖 Sending data to Moon Dev's AI for analysis...")
-            
+
+            print("\n🧠 Sending data to Moon Dev's AI for analysis...")
+
             # Get LLM analysis
             message = self.client.messages.create(
                 model=AI_MODEL,

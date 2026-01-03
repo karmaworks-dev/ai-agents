@@ -83,7 +83,7 @@ class WhaleAgent(BaseAgent):
         self.ai_temperature = AI_TEMPERATURE if AI_TEMPERATURE > 0 else config.AI_TEMPERATURE
         self.ai_max_tokens = AI_MAX_TOKENS if AI_MAX_TOKENS > 0 else config.AI_MAX_TOKENS
         
-        print(f"🤖 Using AI Model: {self.ai_model}")
+        print(f"🧠 Using AI Model: {self.ai_model}")
         if AI_MODEL or AI_TEMPERATURE > 0 or AI_MAX_TOKENS > 0:
             print("⚠️ Note: Using some override settings instead of config.py defaults")
             if AI_MODEL:
@@ -406,7 +406,7 @@ class WhaleAgent(BaseAgent):
                 if not self.deepseek_client:
                     raise ValueError("🚨 DeepSeek client not initialized - check DEEPSEEK_KEY")
                     
-                print(f"\n🤖 Analyzing whale movement with DeepSeek model: {self.ai_model}...")
+                print(f"\n📊 Analyzing whale movement with DeepSeek model: {self.ai_model}...")
                 # Make DeepSeek API call
                 response = self.deepseek_client.chat.completions.create(
                     model=self.ai_model,  # Use the actual model from override
@@ -420,7 +420,7 @@ class WhaleAgent(BaseAgent):
                 )
                 response_text = response.choices[0].message.content.strip()
             else:
-                print(f"\n🤖 Analyzing whale movement with Claude model: {self.ai_model}...")
+                print(f"\n📊 Analyzing whale movement with Claude model: {self.ai_model}...")
                 # Get AI analysis using Claude
                 message = self.client.messages.create(
                     model=self.ai_model,

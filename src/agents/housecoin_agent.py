@@ -123,7 +123,7 @@ class HousecoinAgent:
         cprint("\n🏠 Initializing Housecoin DCA Agent with AI Decision Layer 🏠", "cyan", attrs=['bold'])
 
         # Initialize AI model
-        cprint(f"🤖 Loading {AI_MODEL_TYPE} model: {AI_MODEL_NAME}", "yellow")
+        cprint(f"⚙️ Loading {AI_MODEL_TYPE} model: {AI_MODEL_NAME}", "yellow")
         self.model = model_factory.get_model(AI_MODEL_TYPE, AI_MODEL_NAME)
 
         if not self.model:
@@ -380,7 +380,7 @@ class HousecoinAgent:
             )
 
             # Get AI decision
-            cprint("\n🤖 Consulting AI for trade confirmation...", "cyan")
+            cprint("\n🧠 Consulting AI for trade confirmation...", "cyan")
             response = self.model.generate_response(
                 system_prompt="You are a trading assistant that must respond with either 'BUY' or 'DONT BUY' followed by a brief explanation.",
                 user_content=prompt,
@@ -575,7 +575,7 @@ class HousecoinAgent:
                             cprint("🏠 HOUSECOIN THESIS:", "cyan", attrs=['bold'])
                             cprint(thesis, "white", "on_blue")
                     else:
-                        cprint("\n🤖 AI rejected the buy signal. Waiting for better conditions...", "yellow")
+                        cprint("\nAI rejected the buy signal. Waiting for better conditions...", "yellow")
                         print(f"AI reasoning: {str(ai_response)[:150]}")
 
                 # Sleep based on mode

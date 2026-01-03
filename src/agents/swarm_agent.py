@@ -130,11 +130,11 @@ class SwarmAgent:
         self._initialize_models()
 
         cprint("\n" + "="*60, "cyan")
-        cprint("🌙 Moon Dev's Swarm Agent Initialized 🌙", "cyan", attrs=['bold'])
+        cprint("♾️ Moon Dev's Swarm Agent Initialized ♾️", "cyan", attrs=['bold'])
         cprint("="*60, "cyan")
-        cprint(f"\n🤖 Active Models in Swarm: {len(self.active_models)}", "green")
+        cprint(f"\n♾️ Active Models in Swarm: {len(self.active_models)}", "green")
         for name in self.active_models.keys():
-            cprint(f"   ✅ {name}", "green")
+            cprint(f"   ♾️ {name}", "green")
 
     def _initialize_models(self):
         """Initialize all enabled models"""
@@ -215,13 +215,13 @@ class SwarmAgent:
         Returns:
             Dict containing individual responses and metadata
         """
-        cprint(f"\n🌊 Initiating Swarm Query with {len(self.active_models)} models...", "cyan", attrs=['bold'])
-        cprint(f"📝 Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}", "blue")
+        cprint(f"\n♾️ Initiating Swarm Query with {len(self.active_models)} models...", "cyan", attrs=['bold'])
+        cprint(f"♾️ Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}", "blue")
 
         # Show which models are being called in parallel
-        cprint(f"\n🚀 Calling models in parallel:", "yellow", attrs=['bold'])
+        cprint(f"\n♾️ Calling models in parallel:", "yellow", attrs=['bold'])
         for provider, model_info in self.active_models.items():
-            cprint(f"   → {provider.upper()}: {model_info['name']}", "cyan")
+            cprint(f"   ♾️ {provider.upper()}: {model_info['name']}", "cyan")
 
         start_time = time.time()
         all_responses = {}
@@ -250,17 +250,17 @@ class SwarmAgent:
                     provider = futures[future]
                     completed_count += 1
 
-                    cprint(f"\n⏳ Waiting for responses... ({completed_count}/{total_models} completed)", "yellow")
-                    cprint(f"🔄 Processing: {provider}...", "cyan")
+                    cprint(f"\n♾️ Waiting for responses... ({completed_count}/{total_models} completed)", "yellow")
+                    cprint(f"♾️ Processing: {provider}...", "cyan")
 
                     try:
                         provider, response = future.result(timeout=5)  # 5 second timeout per result
                         all_responses[provider] = response
 
                         if response["success"]:
-                            cprint(f"   ✅ {provider} responded ({response['response_time']}s)", "green")
+                            cprint(f"   ♾️ {provider} responded ({response['response_time']}s)", "green")
                         else:
-                            cprint(f"   ❌ {provider} failed: {response['error']}", "red")
+                            cprint(f"   ♾️ {provider} failed: {response['error']}", "red")
 
                     except TimeoutError:
                         cprint(f"   ⏰ {provider} timed out (>{MODEL_TIMEOUT}s) - skipping", "yellow")
@@ -300,7 +300,7 @@ class SwarmAgent:
                             "response_time": MODEL_TIMEOUT
                         }
                 # 🌙 Moon Dev - Don't raise, continue with partial results
-                cprint(f"✅ Continuing with {len([r for r in all_responses.values() if r['success']])} successful responses", "green")
+                cprint(f"♾️ Continuing with {len([r for r in all_responses.values() if r['success']])} successful responses", "green")
 
         # Generate consensus review summary (with model mapping)
         consensus_summary, model_mapping = self._generate_consensus_review(all_responses, prompt)
@@ -422,7 +422,7 @@ class SwarmAgent:
             if not reviewer_model:
                 return "Consensus reviewer model not available.", model_mapping
 
-            cprint(f"\n🧠 Generating consensus summary with {model_name}...", "magenta")
+            cprint(f"\n♾️ Generating consensus summary with {model_name}...", "magenta")
 
             # Generate consensus review
             review_response = reviewer_model.generate_response(
@@ -438,7 +438,7 @@ class SwarmAgent:
             else:
                 consensus_summary = str(review_response).strip()
 
-            cprint(f"✅ Consensus summary generated!", "green")
+            cprint(f"♾️ Consensus summary generated!", "green")
 
             return consensus_summary, model_mapping
 
@@ -461,21 +461,21 @@ class SwarmAgent:
         metadata = result["metadata"]
 
         cprint("\n" + "="*60, "green")
-        cprint("🎯 SWARM CONSENSUS", "green", attrs=['bold'])
+        cprint("♾️ SWARM CONSENSUS", "green", attrs=['bold'])
         cprint("="*60, "green")
 
         # Show model mapping first
         if "model_mapping" in result and result["model_mapping"]:
-            cprint("\n🔢 Model Key:", "blue")
+            cprint("\n♾️ Model Key:", "blue")
             for ai_num, provider in result["model_mapping"].items():
                 cprint(f"   {ai_num} = {provider}", "white")
 
         # Show AI-generated consensus summary
         if "consensus_summary" in result:
-            cprint("\n🧠 AI CONSENSUS SUMMARY:", "magenta", attrs=['bold'])
+            cprint("\n♾️ AI CONSENSUS SUMMARY:", "magenta", attrs=['bold'])
             cprint(f"{result['consensus_summary']}\n", "white")
 
-        cprint(f"⚡ Performance:", "cyan")
+        cprint(f"♾️ Performance:", "cyan")
         cprint(f"   Total Time: {metadata['total_time']}s", "white")
         cprint(f"   Success Rate: {metadata['successful_responses']}/{metadata['total_models']}", "white")
 
@@ -505,7 +505,7 @@ class SwarmAgent:
 def main():
     """Simple interactive swarm query"""
     cprint("\n" + "="*60, "cyan")
-    cprint("🌙 Moon Dev's Swarm Agent 🌙", "cyan", attrs=['bold'])
+    cprint("♾️ Moon Dev's Swarm Agent ♾️", "cyan", attrs=['bold'])
     cprint("="*60, "cyan")
 
     # Initialize swarm
@@ -524,7 +524,7 @@ def main():
 
     # Show individual responses
     cprint("\n" + "="*60, "cyan")
-    cprint("📋 AI RESPONSES", "cyan", attrs=['bold'])
+    cprint("♾️ SWARM AI RESPONSES", "cyan", attrs=['bold'])
     cprint("="*60, "cyan")
 
     # Create reverse mapping to show AI numbers
@@ -538,9 +538,9 @@ def main():
             # Get AI number if available
             ai_label = reverse_mapping.get(provider, "")
             if ai_label:
-                cprint(f"\n🤖 {ai_label} ({provider.upper()}):", "yellow", attrs=['bold'])
+                cprint(f"\n{ai_label} ({provider.upper()}):", "yellow", attrs=['bold'])
             else:
-                cprint(f"\n🤖 {provider.upper()}:", "yellow", attrs=['bold'])
+                cprint(f"\n{provider.upper()}:", "yellow", attrs=['bold'])
 
             response_text = data['response']
 
@@ -551,14 +551,14 @@ def main():
             else:
                 cprint(f"{response_text}", "white")
 
-            cprint(f"⏱️  Response time: {data['response_time']}s", "cyan")
+            cprint(f"♾️ Response time: {data['response_time']}s", "cyan")
         else:
             cprint(f"\n❌ {provider.upper()}: Failed - {data['error']}", "red")
 
     # Show summary
     swarm._print_summary(result)
 
-    cprint("\n✨ Swarm query complete! 🌙", "cyan", attrs=['bold'])
+    cprint("\n♾️ Swarm query complete!", "cyan", attrs=['bold'])
 
 
 if __name__ == "__main__":

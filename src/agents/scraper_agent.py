@@ -111,11 +111,11 @@ class ScraperAgent:
 
         # Initialize AI models
         if self.use_swarm:
-            cprint("\n🤖 Initializing SwarmAgent (multi-model analysis)...", "green")
+            cprint("\n⚙️ Initializing SwarmAgent (multi-model analysis)...", "green")
             self.swarm = SwarmAgent()
             self.ai_mode = "SWARM"
         else:
-            cprint(f"\n🤖 Initializing XAI model ({XAI_MODEL})...", "green")
+            cprint(f"\n⚙️ Initializing XAI model ({XAI_MODEL})...", "green")
             self.xai_model = model_factory.get_model("xai", XAI_MODEL)
             if not self.xai_model:
                 cprint("❌ Failed to initialize XAI model!", "red")
@@ -414,14 +414,14 @@ Content:
                         f.write("-"*80 + "\n\n")
                         for provider, data in analysis_results["responses"].items():
                             if data["success"]:
-                                f.write(f"🤖 {provider.upper()}:\n")
+                                f.write(f"{provider.upper()}:\n")
                                 f.write(f"{data['response']}\n\n")
                                 f.write("-"*80 + "\n\n")
                             else:
                                 f.write(f"❌ {provider.upper()}: Failed - {data.get('error', 'Unknown error')}\n\n")
                     else:
                         # XAI mode
-                        f.write("🤖 XAI RESPONSE:\n")
+                        f.write("XAI RESPONSE:\n")
                         f.write("-"*80 + "\n")
                         f.write(f"{analysis_results['response']}\n")
                 else:
@@ -640,7 +640,7 @@ Content:
                             cprint("\n📋 Individual Responses:", "cyan")
                             for provider, data in analysis["responses"].items():
                                 if data["success"]:
-                                    cprint(f"\n🤖 {provider.upper()}:", "yellow")
+                                    cprint(f"\n{provider.upper()}:", "yellow")
                                     response_text = data["response"]
                                     # Truncate if too long
                                     if len(response_text) > 300:
@@ -649,7 +649,7 @@ Content:
                                         cprint(response_text, "white")
                         else:
                             # XAI mode
-                            cprint("\n🤖 XAI RESPONSE:", "magenta", attrs=['bold'])
+                            cprint("\nXAI RESPONSE:", "magenta", attrs=['bold'])
                             response_text = analysis["response"]
                             if len(response_text) > 500:
                                 cprint(f"{response_text[:500]}...", "white")

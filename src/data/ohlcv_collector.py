@@ -32,7 +32,7 @@ def collect_token_data(token, days_back=DAYSBACK_4_DATA, timeframe=DATA_TIMEFRAM
         timeframe: Candle timeframe (1m, 5m, 15m, 1H, etc.)
         exchange: "SOLANA", "ASTER", "HYPERLIQUID", or "EXTENDED"
     """
-    cprint(f"\n🤖 Moon Dev's AI Agent fetching data for {token}...", "white", "on_blue")
+    cprint(f"\n📊 Moon Dev's AI Agent fetching data for {token}...", "white", "on_blue")
 
     try:
         # Calculate number of bars based on timeframe and days

@@ -110,7 +110,7 @@ Author: Moon Dev 🌙
 MODEL_OVERRIDE = "deepseek-chat"  # Set to "0" to disable override
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # Base URL for DeepSeek API
 
-# 🤖 Agent Prompts & Personalities
+# Agent Prompts & Personalities
 AGENT_ONE_PROMPT = """
 You are Agent One - The Technical Analysis Expert 📊
 Your role is to analyze charts, patterns, and market indicators to identify trading opportunities.
@@ -167,7 +167,7 @@ Guidelines:
 Help Moon Dev keep track of the trading journey! 🎯
 """
 
-# 🤖 Agent Model Selection
+# Agent Model Selection
 AGENT_ONE_MODEL = MODEL_OVERRIDE if MODEL_OVERRIDE != "0" else "claude-3-haiku-20240307"
 AGENT_TWO_MODEL = MODEL_OVERRIDE if MODEL_OVERRIDE != "0" else "claude-3-sonnet-20240229"
 TOKEN_EXTRACTOR_MODEL = MODEL_OVERRIDE if MODEL_OVERRIDE != "0" else "claude-3-haiku-20240307"
@@ -293,7 +293,7 @@ class AIAgent:
                 raise ValueError("🚨 DEEPSEEK_KEY not found in environment variables!")
         else:
             self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_KEY"))
-            print(f"🤖 {name} using Claude model: {model}")
+            print(f"🧠 {name} using Claude model: {model}")
             
         # Use a simpler memory file name
         self.memory_file = AGENT_MEMORY_DIR / f"{name.lower().replace(' ', '_')}.json"
@@ -337,7 +337,7 @@ Previous Agent Message:
 
 Remember to format your response like this:
 
-🤖 Hey Moon Dev! {self.name} here!
+Hey Moon Dev! {self.name} here!
 =================================
 
 📊 Market Vibes:
@@ -688,12 +688,12 @@ Create a brief synopsis of this trading round.
             market_data['recent_history'] = self.get_recent_history()
             
             # Agent One starts the conversation
-            print_section("🤖 Agent One's Analysis", "on_blue")
+            print_section("📊 Agent One's Analysis", "on_blue")
             agent_one_response = self.agent_one.think(market_data)
             print(agent_one_response)
             
             # Agent Two responds
-            print_section("🤖 Agent Two's Response", "on_magenta")
+            print_section("📊 Agent Two's Response", "on_magenta")
             agent_two_response = self.agent_two.think(market_data, agent_one_response)
             print(agent_two_response)
             

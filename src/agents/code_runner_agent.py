@@ -405,7 +405,7 @@ def paste_from_clipboard():
 def submit_to_ai_debug(number):
     """Submit to AI debug with new process and handle code fix loop"""
     try:
-        cprint("\n🤖 Starting AI Debug Submission...", "cyan")
+        cprint("\nStarting AI Debug Submission...", "cyan")
         
         # Copy prompt to clipboard first
         cprint("\n📋 Copying prompt to clipboard...", "cyan")
@@ -715,7 +715,7 @@ def analyze_composer_screenshot(screenshot_path: str) -> bool:
         
         # Parse response
         result = response.choices[0].message.content.strip().lower()
-        cprint(f"🤖 GPT-4 Analysis Result: {result}", "cyan")
+        cprint(f"GPT-4 Analysis Result: {result}", "cyan")
         
         return result == "true"
         

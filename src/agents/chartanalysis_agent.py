@@ -101,7 +101,7 @@ class ChartAnalysisAgent(BaseAgent):
         self.ai_max_tokens = AI_MAX_TOKENS if AI_MAX_TOKENS > 0 else config.AI_MAX_TOKENS
         
         print("📊 Chuck the Chart Agent initialized!")
-        print(f"🤖 Using AI Model: {self.ai_model}")
+        print(f"🧠 Using AI Model: {self.ai_model}")
         if AI_MODEL or AI_TEMPERATURE > 0 or AI_MAX_TOKENS > 0:
             print("⚠️ Note: Using some override settings instead of config.py defaults")
         print(f"🎯 Analyzing {len(TIMEFRAMES)} timeframes: {', '.join(TIMEFRAMES)}")
@@ -177,7 +177,7 @@ class ChartAnalysisAgent(BaseAgent):
                 chart_data=chart_data
             )
             
-            print(f"\n🤖 Analyzing {symbol} with AI...")
+            print(f"\n📊 Analyzing {symbol} with AI...")
             
             # Get AI analysis using instance settings
             message = self.client.messages.create(

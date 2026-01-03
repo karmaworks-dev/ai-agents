@@ -34,7 +34,7 @@ class UnifiedTradingAgent:
         # Create exchange manager (automatically uses config.EXCHANGE)
         self.em = ExchangeManager()
 
-        cprint(f"\n🤖 Unified Trading Agent Initialized", "cyan", attrs=['bold'])
+        cprint(f"\n⚙️ Unified Trading Agent Initialized", "cyan", attrs=['bold'])
         cprint(f"📍 Active Exchange: {EXCHANGE.upper()}", "green")
 
         # Get the appropriate token list based on exchange

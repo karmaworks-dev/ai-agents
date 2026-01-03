@@ -131,7 +131,6 @@ send back the actual verse in FULL. SEND BACK FULL VERSE
 
 # Add new constants for emojis
 USER_EMOJIS = ["👨🏽", "👨🏽", "🧑🏽‍🦱", "👨🏽‍🦱", "👨🏽‍🦳", "👱🏽‍♂️", "👨🏽‍🦰", "👩🏽‍🦱"]
-AI_EMOJIS = ["🤖", "🐳", "🐐", "👽", "🧠", "🌚"]
 CLOWN_SPAM = "🤡" * 5  # 9 clown emojis for negative messages
 
 # Add lucky emojis for 777 responses
@@ -149,7 +148,7 @@ WARNING_EMOJIS = ["⚠️", "🚫", "❌", "⛔️", "🔴", "💀", "☠️", "
 
 # Update config defaults
 DEFAULT_CONFIG = {
-    "response_prefix": "🤖 Moon Dev AI: ",
+    "response_prefix": "Moon Dev AI: ",
     "ignored_users": ["Nightbot", "StreamElements"],
     "command_prefix": "!",
     "initial_chats": DEFAULT_INITIAL_CHATS,
@@ -637,12 +636,12 @@ class RestreamChatHandler:
         if ai_response:
             # If it's a 777 response, display with cyan background
             if text.strip() == "777":
-                print(f"{random.choice(AI_EMOJIS)} ", end="")
+                print(f"🧠 ", end="")
                 cprint("Moon Dev AI", "white", "on_green", end="")
                 print(": ", end="")
                 cprint(ai_response, "white", "on_cyan")
             else:
-                print(f"{random.choice(AI_EMOJIS)} ", end="")
+                print(f"🧠 ", end="")
                 cprint("Moon Dev AI", "white", "on_green", end="")
                 print(f": {ai_response}")
             print()  # Add spacing
@@ -650,7 +649,7 @@ class RestreamChatHandler:
 class ChatAgent:
     def __init__(self):
         """Initialize the Chat Agent"""
-        cprint("\n🤖 Initializing Moon Dev's Chat Agent...", "cyan")
+        cprint("\n⚙️ Initializing Moon Dev's Chat Agent...", "cyan")
         
         # Create data directories
         self.data_dir = Path(project_root) / "src" / "data" / "chat_agent"
@@ -749,7 +748,7 @@ class ChatAgent:
         
     def _announce_model(self):
         """Announce current model with eye-catching formatting"""
-        model_msg = f"🤖 USING MODEL: {MODEL_TYPE.upper()} - {MODEL_NAME} 🤖"
+        model_msg = f"USING MODEL: {MODEL_TYPE.upper()} - {MODEL_NAME}"
         border = "=" * (len(model_msg) + 4)
         cprint(border, 'white', 'on_blue', attrs=['bold'])
         cprint(f"  {model_msg}  ", 'white', 'on_blue', attrs=['bold'])
@@ -822,12 +821,12 @@ class ChatAgent:
         if ai_response:
             # If it's a 777 response, display with cyan background
             if text.strip() == "777":
-                print(f"{random.choice(AI_EMOJIS)} ", end="")
+                print(f"🧠 ", end="")
                 cprint("Moon Dev AI", "white", "on_green", end="")
                 print(": ", end="")
                 cprint(ai_response, "white", "on_cyan")
             else:
-                print(f"{random.choice(AI_EMOJIS)} ", end="")
+                print(f"🧠 ", end="")
                 cprint("Moon Dev AI", "white", "on_green", end="")
                 print(f": {ai_response}")
             print()  # Add spacing

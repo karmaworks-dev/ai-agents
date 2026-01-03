@@ -253,10 +253,10 @@ def analyze_with_ai(
     """
     try:
         if use_swarm and swarm_agent is not None:
-            cprint("🌊 Using Swarm Mode for analysis...", "cyan")
+            cprint("♾️ Using Swarm Mode for analysis...", "cyan")
             return query_swarm(prompt, swarm_agent)
         elif model_factory is not None:
-            cprint("🤖 Using Single Model for analysis...", "cyan")
+            cprint("🧠 Using Single Model for analysis...", "cyan")
             return query_single_model(prompt, model_factory, provider)
         else:
             return AIResponse(

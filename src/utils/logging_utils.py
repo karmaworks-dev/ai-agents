@@ -1,11 +1,19 @@
 """
 Shared logging utilities for trading dashboard and agents
 Prevents circular imports between trading_app.py and trading_agent.py
+
+Features:
+- Deduplication: Prevents same log entries from appearing multiple times
+- Two separate queues: main dashboard and backtest console
+- Thread-safe operations
 """
 import json
 import queue
+import hashlib
+import threading
 from pathlib import Path
 from datetime import datetime
+from collections import OrderedDict
 
 # Global log queue for async logging (main dashboard)
 log_queue = queue.Queue(maxsize=1000)
@@ -13,9 +21,70 @@ log_queue = queue.Queue(maxsize=1000)
 # Separate log queue for backtest console (RBI backtesting page)
 backtest_log_queue = queue.Queue(maxsize=1000)
 
+# ============================================================================
+# LOG DEDUPLICATION SYSTEM
+# ============================================================================
+# Prevents duplicate log entries from appearing in the front-end
+# Uses a time-based cache to track recent logs
+
+# Thread-safe lock for deduplication cache
+_dedup_lock = threading.Lock()
+
+# Cache of recent log hashes with timestamps (OrderedDict for LRU behavior)
+# Key: hash of (message + level), Value: timestamp
+_recent_logs = OrderedDict()
+
+# Deduplication settings
+DEDUP_WINDOW_SECONDS = 2.0  # Window to consider logs as duplicates
+DEDUP_CACHE_MAX_SIZE = 100  # Maximum number of entries in cache
+
+
+def _get_log_hash(message: str, level: str) -> str:
+    """Generate a hash for a log entry to detect duplicates."""
+    content = f"{message}|{level}"
+    return hashlib.md5(content.encode()).hexdigest()[:16]
+
+
+def _is_duplicate_log(message: str, level: str) -> bool:
+    """
+    Check if this log entry is a duplicate of a recent one.
+
+    Returns True if duplicate (should be skipped), False otherwise.
+    Thread-safe implementation.
+    """
+    log_hash = _get_log_hash(message, level)
+    current_time = datetime.now().timestamp()
+
+    with _dedup_lock:
+        # Clean up old entries beyond the dedup window
+        cutoff_time = current_time - DEDUP_WINDOW_SECONDS
+        keys_to_remove = []
+        for key, timestamp in _recent_logs.items():
+            if timestamp < cutoff_time:
+                keys_to_remove.append(key)
+            else:
+                break  # OrderedDict is ordered by insertion time
+
+        for key in keys_to_remove:
+            del _recent_logs[key]
+
+        # Check if this log is a duplicate
+        if log_hash in _recent_logs:
+            return True  # Duplicate found
+
+        # Not a duplicate - add to cache
+        _recent_logs[log_hash] = current_time
+
+        # Trim cache if too large (LRU eviction)
+        while len(_recent_logs) > DEDUP_CACHE_MAX_SIZE:
+            _recent_logs.popitem(last=False)  # Remove oldest
+
+        return False  # Not a duplicate
+
 def add_console_log(message, level="info", console_file=None):
     """
-    Add a log message to console with level support
+    Add a log message to console with level support.
+    Includes deduplication to prevent same log appearing multiple times.
 
     Args:
         message (str): Log message text
@@ -23,9 +92,15 @@ def add_console_log(message, level="info", console_file=None):
         console_file (Path): Optional path to console log file
     """
     try:
+        message_str = str(message)
+
+        # Check for duplicate logs (skip if duplicate within time window)
+        if _is_duplicate_log(message_str, level):
+            return  # Skip duplicate log
+
         log_entry = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message),
+            "message": message_str,
             "level": level
         }
 
@@ -59,7 +134,7 @@ def add_console_log(message, level="info", console_file=None):
                 print(f"⚠️ Error writing to console file: {e}")
 
         # Always print to console immediately
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {message_str}")
 
     except Exception as e:
         print(f"⚠️ Error in add_console_log: {e}")
@@ -87,15 +162,23 @@ def add_backtest_log(message, level="info"):
     """
     Add a log message specifically for the backtest console.
     These logs appear on the backtesting dashboard, not the main trading dashboard.
+    Includes deduplication to prevent duplicate entries.
 
     Args:
         message (str): Log message text
         level (str): Log level - "info", "success", "error", "warning"
     """
     try:
+        message_str = str(message)
+
+        # Check for duplicate logs (skip if duplicate within time window)
+        # Use "backtest_" prefix to separate from main console deduplication
+        if _is_duplicate_log(f"backtest_{message_str}", level):
+            return  # Skip duplicate log
+
         log_entry = {
             "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "message": str(message),
+            "message": message_str,
             "level": level
         }
 
@@ -106,7 +189,7 @@ def add_backtest_log(message, level="info"):
             pass  # Queue full, skip this log
 
         # Always print to console
-        print(f"[BACKTEST {datetime.now().strftime('%H:%M:%S')}] {message}")
+        print(f"[BACKTEST {datetime.now().strftime('%H:%M:%S')}] {message_str}")
 
     except Exception as e:
         print(f"⚠️ Error in add_backtest_log: {e}")

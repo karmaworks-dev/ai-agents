@@ -159,14 +159,14 @@ class ClipsAgent:
     def _setup_ai(self):
         """Initialize AI model using factory"""
         if not PROCESS_YOUTUBE:
-            cprint("🤖 AI initialization skipped - YouTube processing disabled", "yellow")
+            cprint("AI initialization skipped - YouTube processing disabled", "yellow")
             return
             
         try:
             self.model = model_factory.get_model(MODEL_TYPE, MODEL_NAME)
             if not self.model:
                 raise ValueError(f"Could not initialize {MODEL_TYPE} {MODEL_NAME} model!")
-            cprint("🤖 AI Model initialized successfully!", "green")
+            cprint("AI Model initialized successfully!", "green")
         except Exception as e:
             cprint(f"❌ Error initializing AI model: {str(e)}", "red")
             raise

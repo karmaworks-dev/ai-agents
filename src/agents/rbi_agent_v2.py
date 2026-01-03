@@ -472,7 +472,7 @@ def chat_with_model(system_prompt, user_content, model_config):
     if not model:
         raise ValueError(f"🚨 Could not initialize {model_config['type']} {model_config['name']} model!")
 
-    cprint(f"🤖 Using {model_config['type']} model: {model_config['name']}", "cyan")
+    cprint(f"🧠 Using {model_config['type']} model: {model_config['name']}", "cyan")
     
     if model_config["type"] == "ollama":
         response = model.generate_response(

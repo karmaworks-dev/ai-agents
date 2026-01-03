@@ -164,7 +164,7 @@ class PolymarketAgent:
 
         # Initialize AI models
         if USE_SWARM_MODE:
-            cprint("🤖 Using SWARM MODE - Multiple AI models", "green")
+            cprint("✅ Using SWARM MODE - Multiple AI models", "green")
             try:
                 from src.agents.swarm_agent import SwarmAgent
                 self.swarm = SwarmAgent()
@@ -175,7 +175,7 @@ class PolymarketAgent:
                 self.swarm = None
                 self.model = ModelFactory().get_model(AI_MODEL_PROVIDER, AI_MODEL_NAME)
         else:
-            cprint(f"🤖 Using single model: {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}", "green")
+            cprint(f"🧠 Using single model: {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}", "green")
             self.model = ModelFactory().get_model(AI_MODEL_PROVIDER, AI_MODEL_NAME)
             self.swarm = None
 
@@ -586,7 +586,7 @@ class PolymarketAgent:
         analysis_timestamp = datetime.now().isoformat()
 
         cprint("\n" + "="*80, "magenta")
-        cprint(f"🤖 AI Analysis - Analyzing {len(markets_to_analyze)} markets", "magenta", attrs=['bold'])
+        cprint(f"📊 AI Analysis - Analyzing {len(markets_to_analyze)} markets", "magenta", attrs=['bold'])
         cprint(f"📊 Analysis Run ID: {analysis_run_id}", "magenta")
         cprint(f"💰 Price info to AI: {'✅ ENABLED' if SEND_PRICE_INFO_TO_AI else '❌ DISABLED'}", "green" if SEND_PRICE_INFO_TO_AI else "yellow")
         cprint("="*80, "magenta")
@@ -649,7 +649,7 @@ Provide predictions for each market in the specified format."""
 
             # Display individual AI responses as they arrive
             cprint("="*80, "yellow")
-            cprint("🤖 Individual AI Predictions", "yellow", attrs=['bold'])
+            cprint("✅ Individual AI Predictions", "yellow", attrs=['bold'])
             cprint("="*80, "yellow")
 
             for model_name, model_data in swarm_result.get('responses', {}).items():
@@ -694,7 +694,7 @@ Provide predictions for each market in the specified format."""
             self._mark_markets_analyzed(markets_to_analyze, analysis_timestamp)
         else:
             # Use single model
-            cprint(f"\n🤖 Getting predictions from {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}...\n", "cyan")
+            cprint(f"\n🧠 Getting predictions from {AI_MODEL_PROVIDER}/{AI_MODEL_NAME}...\n", "cyan")
 
             try:
                 response = self.model.generate_response(
@@ -1277,7 +1277,7 @@ Provide predictions for each market in the specified format."""
     def analysis_cycle(self):
         """Check if we have enough eligible markets and run AI analysis"""
         cprint("\n" + "="*80, "magenta")
-        cprint("🤖 ANALYSIS CYCLE CHECK", "magenta", attrs=['bold'])
+        cprint("📊 ANALYSIS CYCLE CHECK", "magenta", attrs=['bold'])
         cprint(f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "magenta")
         cprint("="*80 + "\n", "magenta")
 
@@ -1389,7 +1389,7 @@ Provide predictions for each market in the specified format."""
 
     def analysis_loop(self):
         """🌙 Moon Dev - Continuously check for new markets to analyze (runs immediately!)"""
-        cprint("\n🤖 ANALYSIS THREAD STARTED", "magenta", attrs=['bold'])
+        cprint("\n✅ ANALYSIS THREAD STARTED", "magenta", attrs=['bold'])
         cprint(f"🧠 Running first analysis NOW, then checking every {ANALYSIS_CHECK_INTERVAL_SECONDS} seconds\n", "magenta")
 
         # 🌙 Moon Dev - Run first analysis IMMEDIATELY (no waiting!)
@@ -1427,10 +1427,10 @@ def main():
     cprint("🔄 REAL-TIME WebSocket MODE:", "green", attrs=['bold'])
     cprint(f"   🌐 WebSocket: {WEBSOCKET_URL}", "cyan")
     cprint(f"   📊 Status Display: Every 30s - Shows collection stats", "cyan")
-    cprint(f"   🤖 Analysis Thread: Every {ANALYSIS_CHECK_INTERVAL_SECONDS}s - Checks for new markets", "magenta")
+    cprint(f"   📊 Analysis Thread: Every {ANALYSIS_CHECK_INTERVAL_SECONDS}s - Checks for new markets", "magenta")
     cprint(f"   🎯 AI Analysis triggers when {NEW_MARKETS_FOR_ANALYSIS} new markets collected", "yellow")
     cprint("", "yellow")
-    cprint(f"🤖 AI Mode: {'SWARM (7 models)' if USE_SWARM_MODE else 'Single Model'}", "yellow")
+    cprint(f"🧠 AI Mode: {'SWARM (7 models)' if USE_SWARM_MODE else 'Single Model'}", "yellow")
     cprint(f"💰 Price Info to AI: {'ENABLED' if SEND_PRICE_INFO_TO_AI else 'DISABLED'}", "green" if SEND_PRICE_INFO_TO_AI else "yellow")
     cprint("", "yellow")
     cprint("📁 Data Files:", "cyan", attrs=['bold'])

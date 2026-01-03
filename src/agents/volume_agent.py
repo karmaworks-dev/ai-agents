@@ -495,7 +495,7 @@ Give your pick and explain your reasoning in 2-3 sentences. Focus EXCLUSIVELY on
 def run_swarm_analysis(changes):
     """Run swarm analysis - Moon Dev"""
 
-    cprint("\n🤖 Running AI Swarm Analysis...\n", "cyan", attrs=['bold'])
+    cprint("\n📊 Running AI Swarm Analysis...\n", "cyan", attrs=['bold'])
 
     # Initialize swarm with Moon Dev's models
     swarm = SwarmAgent()
@@ -687,7 +687,7 @@ def run_continuous():
     """Run agent every 4 hours - Moon Dev"""
 
     cprint("\n" + "=" * 120, "green")
-    cprint("🤖 HYPERLIQUID VOLUME AGENT - SWARM EDITION 🤖", "green", attrs=['bold'])
+    cprint("✅ HYPERLIQUID VOLUME AGENT - SWARM EDITION", "green", attrs=['bold'])
     cprint("Made by Moon Dev", "yellow", attrs=['bold'])
     cprint("=" * 120, "green")
     cprint("\n⏰ Running every 4 hours", "cyan")
@@ -723,7 +723,7 @@ def main():
 
     if len(sys.argv) > 1 and sys.argv[1] == "--once":
         # Single run mode
-        cprint("\n🤖 VOLUME AGENT - SINGLE RUN MODE 🤖\n", "cyan", attrs=['bold'])
+        cprint("\n✅ VOLUME AGENT - SINGLE RUN MODE\n", "cyan", attrs=['bold'])
         initialize_data_dir()
         run_check()
     else:

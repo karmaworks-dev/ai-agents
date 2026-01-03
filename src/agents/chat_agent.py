@@ -74,7 +74,7 @@ RESTREAM_EVENT_SOURCES = {
 
 # Add new constants for emojis
 USER_EMOJIS = ["👨🏽", "👨🏽", "🧑🏽‍🦱", "👨🏽‍🦱", "👨🏽‍🦳", "👱🏽‍♂️", "👨🏽‍🦰", "👩🏽‍🦱"]
-AI_EMOJIS = ["🤖", "🐳", "🐐", "👽", "🧠", "🌚"]
+AI_EMOJIS = ["🐳", "🐐", "👽", "🧠", "🌚"]
 # Add lucky emojis for 777 responses
 LUCKY_EMOJIS = ["⭐️", "🧠", "😎", "♥️", "💙", "💚", "😇", "🌟", "✨", "💫", "❤️‍🔥"]
 
@@ -83,7 +83,7 @@ MESSAGE_COOLDOWN = 3  # Reduce from 10 to 3 seconds
 
 # Update config defaults
 DEFAULT_CONFIG = {
-    "response_prefix": "🤖 Moon Dev AI: ",
+    "response_prefix": "Moon Dev AI: ",
     "ignored_users": ["Nightbot", "StreamElements"],
     "command_prefix": "!",
     "initial_chats": DEFAULT_INITIAL_CHATS,
@@ -313,7 +313,7 @@ class RestreamChatHandler:
 class ChatAgent:
     def __init__(self):
         """Initialize the Chat Agent"""
-        cprint("\n🤖 Initializing Moon Dev's Chat Agent...", "cyan")
+        cprint("\n⚙️ Initializing Moon Dev's Chat Agent...", "cyan")
         
         # Remove knowledge base initialization
         self.data_dir = Path(project_root) / "src" / "data" / "chat_agent"

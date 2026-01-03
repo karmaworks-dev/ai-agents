@@ -422,7 +422,7 @@ def chat_with_model(system_prompt, user_content, model_config):
         if not model:
             raise ValueError(f"🚨 Could not initialize {model_config['type']} {model_config['name']} model!")
 
-        cprint(f"🤖 Using {model_config['type']} model: {model_config['name']}", "cyan")
+        cprint(f"🧠 Using {model_config['type']} model: {model_config['name']}", "cyan")
         cprint("🌟 Moon Dev's RBI AI is thinking...", "yellow")
         
         # Debug prints for prompt lengths
@@ -641,7 +641,7 @@ def clean_model_output(output, content_type="text"):
 def research_strategy(content):
     """Research AI: Analyzes and creates trading strategy"""
     cprint("\n🔍 Starting Research AI...", "cyan")
-    cprint("🤖 Time to discover some alpha!", "yellow")
+    cprint("📊 Time to discover some alpha!", "yellow")
     
     output = run_with_animation(
         chat_with_model,
@@ -1037,7 +1037,7 @@ if __name__ == "__main__":
         cprint(f"📅 Today's Date: {TODAY_DATE} - All outputs will be saved in this folder", "magenta")
         cprint(f"🧠 DeepSeek-R1 thinking tags will be automatically removed from outputs", "magenta")
         cprint(f"📋 Processed ideas log: {PROCESSED_IDEAS_LOG}", "magenta")
-        cprint("\n🤖 Model Configurations:", "cyan")
+        cprint("\n🧠 Model Configurations:", "cyan")
         cprint(f"📚 Research: {RESEARCH_CONFIG['type']} - {RESEARCH_CONFIG['name']}", "cyan")
         cprint(f"📊 Backtest: {BACKTEST_CONFIG['type']} - {BACKTEST_CONFIG['name']}", "cyan")
         cprint(f"🔧 Debug: {DEBUG_CONFIG['type']} - {DEBUG_CONFIG['name']}", "cyan")

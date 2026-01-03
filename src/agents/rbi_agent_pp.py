@@ -805,7 +805,7 @@ def clean_model_output(output, content_type="text"):
     return cleaned_output
 
 # ============================================
-# 🤖 AI AGENT FUNCTIONS (Thread-safe versions)
+# AI AGENT FUNCTIONS (Thread-safe versions)
 # ============================================
 
 def research_strategy(content, thread_id):

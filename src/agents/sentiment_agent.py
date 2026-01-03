@@ -108,7 +108,7 @@ class SentimentAgent:
             pd.DataFrame(columns=['timestamp', 'sentiment_score', 'num_tweets']).to_csv(SENTIMENT_HISTORY_FILE, index=False)
         
         # Load the sentiment model at initialization
-        cprint("🤖 Loading sentiment model...", "cyan")
+        cprint("⚙️ Loading sentiment model...", "cyan")
         self.init_sentiment_model()
             
         cprint("🌙 Moon Dev's Sentiment Agent initialized!", "green")
@@ -460,7 +460,7 @@ class SentimentAgent:
 
     async def run_async(self):
         """Async function to run sentiment analysis"""
-        cprint("🤖 Moon Dev's Sentiment Analysis running...", "cyan")
+        cprint("📊 Moon Dev's Sentiment Analysis running...", "cyan")
         
         # Initialize client if not already done
         if not self.client:

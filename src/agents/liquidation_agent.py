@@ -92,8 +92,8 @@ class LiquidationAgent(BaseAgent):
         self.ai_model = AI_MODEL if AI_MODEL else config.AI_MODEL
         self.ai_temperature = AI_TEMPERATURE if AI_TEMPERATURE > 0 else config.AI_TEMPERATURE
         self.ai_max_tokens = AI_MAX_TOKENS if AI_MAX_TOKENS > 0 else config.AI_MAX_TOKENS
-        
-        print(f"🤖 Using AI Model: {self.ai_model}")
+
+        print(f"🧠 Using AI Model: {self.ai_model}")
         if AI_MODEL or AI_TEMPERATURE > 0 or AI_MAX_TOKENS > 0:
             print("⚠️ Note: Using some override settings instead of config.py defaults")
             if AI_MODEL:
@@ -345,7 +345,7 @@ class LiquidationAgent(BaseAgent):
                 market_data=market_data_str
             )
             
-            print(f"\n🤖 Analyzing liquidation spike with AI...")
+            print(f"\n📊 Analyzing liquidation spike with AI...")
             
             # Use DeepSeek if configured
             if self.deepseek_client and MODEL_OVERRIDE.lower() == "deepseek-chat":
@@ -363,7 +363,7 @@ class LiquidationAgent(BaseAgent):
                 response_text = response.choices[0].message.content.strip()
             else:
                 # Use Claude as before
-                print("🤖 Using Claude for analysis...")
+                print("🧠 Using Claude for analysis...")
                 message = self.client.messages.create(
                     model=self.ai_model,
                     max_tokens=self.ai_max_tokens,

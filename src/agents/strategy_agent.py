@@ -96,9 +96,9 @@ class StrategyAgent:
             except Exception as e:
                 print(f"⚠️ Error loading strategies: {e}")
         else:
-            print("🤖 Strategy Agent is disabled in config.py")
+            print("✅ Strategy Agent is disabled in config.py")
 
-        print(f"🤖 Strategy Agent initialized with {len(self.enabled_strategies)} strategies!")
+        print(f"✅ Strategy Agent initialized with {len(self.enabled_strategies)} strategies!")
 
     # ============================================================
     # 🧮 Evaluate signals using LLM
@@ -149,7 +149,7 @@ class StrategyAgent:
             reasoning = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
 
             # --- Logging ---
-            print("🤖 Strategy Evaluation (AI):")
+            print("📊 Strategy Evaluation (AI):")
             print(f"Decisions: {decisions}")
             print(f"Reasoning (preview): {reasoning[:300]}")
 
@@ -198,7 +198,7 @@ class StrategyAgent:
                 market_data = {}
 
             # --- AI evaluation ---
-            print("\n🤖 Getting LLM evaluation of signals...")
+            print("\n📊 Getting LLM evaluation of signals...")
             evaluation = self.evaluate_signals(signals, market_data)
             if not evaluation:
                 print("❌ Failed to get LLM evaluation")

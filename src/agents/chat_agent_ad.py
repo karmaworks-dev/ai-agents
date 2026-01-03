@@ -164,7 +164,6 @@ ONLY RETURN THE QUOTE, NO OTHER TEXT.
 
 # Add new constants for emojis
 USER_EMOJIS = ["👨🏽", "👨🏽", "🧑🏽‍🦱", "👨🏽‍🦱", "👨🏽‍🦳", "👱🏽‍♂️", "👨🏽‍🦰", "👩🏽‍🦱"]
-AI_EMOJIS = ["🤖", "🐳", "🐐", "👽", "🧠", "🌚"]
 # Add lucky emojis for 777 responses
 LUCKY_EMOJIS = ["⭐️", "🧠", "😎", "♥️", "💙", "💚", "😇", "🌟", "✨", "💫", "❤️‍🔥"]
 
@@ -173,7 +172,7 @@ MESSAGE_COOLDOWN = 3  # Reduce from 10 to 3 seconds
 
 # Update config defaults
 DEFAULT_CONFIG = {
-    "response_prefix": "🤖 Moon Dev AI: ",
+    "response_prefix": "Moon Dev AI: ",
     "ignored_users": ["Nightbot", "StreamElements"],
     "command_prefix": "!",
     "initial_chats": DEFAULT_INITIAL_CHATS,
@@ -433,7 +432,7 @@ class RestreamChatHandler:
             print(f"{random.choice(USER_EMOJIS)} ", end="")
             cprint(username.strip(), "white", "on_blue", end="")
             print(f": {text}")
-            print(f"{random.choice(AI_EMOJIS)} ", end="")
+            print(f"🧠 ", end="")
             cprint("Moon Dev AI", "white", "on_green", end="")
             print(": ", end="")
             cprint(ai_response, "white", "on_cyan")
@@ -459,7 +458,7 @@ class RestreamChatHandler:
 class ChatAgentAd:
     def __init__(self):
         """Initialize the Chat Agent with Ad functionality"""
-        cprint("\n🤖 Initializing Moon Dev's Chat Agent with Ad Support...", "cyan")
+        cprint("\n⚙️ Initializing Moon Dev's Chat Agent with Ad Support...", "cyan")
         
         # Ad tracking variables
         self.chat_count = 0
@@ -641,7 +640,7 @@ class ChatAgentAd:
         
     def _announce_model(self):
         """Announce current model with eye-catching formatting"""
-        model_msg = f"🤖 USING MODEL: {MODEL_TYPE.upper()} - {MODEL_NAME} 🤖"
+        model_msg = f"USING MODEL: {MODEL_TYPE.upper()} - {MODEL_NAME}"
         border = "=" * (len(model_msg) + 4)
         cprint(border, 'white', 'on_blue', attrs=['bold'])
         cprint(f"  {model_msg}  ", 'white', 'on_blue', attrs=['bold'])
@@ -718,7 +717,7 @@ class ChatAgentAd:
             print(f"{random.choice(USER_EMOJIS)} ", end="")
             cprint(username.strip(), "white", "on_blue", end="")
             print(f": {text}")
-            print(f"{random.choice(AI_EMOJIS)} ", end="")
+            print(f"🧠 ", end="")
             cprint("Moon Dev AI", "white", "on_green", end="")
             print(": ", end="")
             cprint(ai_response, "white", "on_cyan")

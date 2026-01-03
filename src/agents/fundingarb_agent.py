@@ -87,7 +87,7 @@ class FundingArbAgent(BaseAgent):
         self.ai_temperature = AI_TEMPERATURE if AI_TEMPERATURE > 0 else 0.5
         self.ai_max_tokens = AI_MAX_TOKENS if AI_MAX_TOKENS > 0 else 150
         
-        print(f"🤖 Using AI Model: {self.ai_model}")
+        print(f"🧠 Using AI Model: {self.ai_model}")
         if AI_MODEL or AI_TEMPERATURE > 0 or AI_MAX_TOKENS > 0:
             print("⚠️ Note: Using some override settings instead of defaults")
             if AI_MODEL:
@@ -169,7 +169,7 @@ class FundingArbAgent(BaseAgent):
                 content = response.choices[0].message.content.strip()
             else:
                 # Use Claude as before
-                print("🤖 Using Claude for analysis...")
+                print("🧠 Using Claude for analysis...")
                 response = self.client.messages.create(
                     model=self.ai_model,
                     max_tokens=self.ai_max_tokens,
@@ -185,7 +185,7 @@ class FundingArbAgent(BaseAgent):
                 )
                 content = str(response.content)
             
-            print(f"\n🤖 Raw AI response:\n{content}")  # Debug print
+            print(f"\n📊 Raw AI response:\n{content}")  # Debug print
             
             # Handle TextBlock format if using Claude
             if 'TextBlock' in content:
@@ -307,7 +307,7 @@ class FundingArbAgent(BaseAgent):
                             """
                             
                             # Analyze opportunity with debug prints
-                            print(f"🤖 Analyzing {symbol} opportunity...")
+                            print(f"📊 Analyzing {symbol} opportunity...")
                             analysis = self._analyze_opportunity(symbol, data, market_data)
                             
                             if analysis:
