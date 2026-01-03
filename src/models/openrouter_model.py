@@ -43,6 +43,26 @@ class OpenRouterModel(BaseModel):
             "input_price": "FREE",
             "output_price": "FREE"
         },
+        "nvidia/nemotron-3-nano-30b-a3b:free": {
+            "description": "(FREE) NVIDIA Nemotron 3 Nano 30B - MoE agentic AI, open weights",
+            "input_price": "FREE",
+            "output_price": "FREE"
+        },
+        "nvidia/nemotron-nano-12b-v2-vl:free": {
+            "description": "(FREE) NVIDIA Nemotron Nano 12B VL - Multimodal video/document reasoning",
+            "input_price": "FREE",
+            "output_price": "FREE"
+        },
+        "nvidia/nemotron-nano-9b-v2:free": {
+            "description": "(FREE) NVIDIA Nemotron Nano 9B V2 - Unified reasoning model",
+            "input_price": "FREE",
+            "output_price": "FREE"
+        },
+        "nvidia/llama-3.1-nemotron-nano-8b-v1:free": {
+            "description": "(FREE) NVIDIA Llama 3.1 Nemotron Nano 8B - Efficient reasoning",
+            "input_price": "FREE",
+            "output_price": "FREE"
+        },
 
         # ============================================================================
         # 🚀 XAI GROK MODELS
