@@ -1675,6 +1675,30 @@ Return ONLY valid JSON with the following structure:
             cprint("💰 SMART PORTFOLIO ALLOCATION", "white", "on_blue", attrs=["bold"])
             cprint("=" * 60, "cyan")
 
+            # --- NEW: make allocator aware of open positions ----------------
+            open_positions = {}
+            try:
+                for sym in SYMBOLS:
+                    try:
+                        pos_data = n.get_position(sym, self.account)
+                        _, im_in_pos, pos_size, _, entry_px, pnl, is_long = pos_data
+                        if im_in_pos and pos_size != 0:
+                            open_positions[sym] = {
+                                "notional": abs(pos_size * entry_px),
+                                "is_long": is_long,
+                                "entry_px": entry_px,
+                                "pnl": pnl,
+                            }
+                    except Exception:
+                        continue
+                if len(open_positions) > 0:
+                    cprint(f"📊 Currently open positions: {len(open_positions)}", "cyan")
+                else:
+                    cprint("📊 No open positions detected.", "cyan")
+            except Exception as e:
+                cprint(f"⚠️ Error fetching open positions: {e}", "yellow")
+            # -----------------------------------------------------------------
+
             # Filter BUY recommendations (for LONG positions)
             buy_recommendations = self.recommendations_df[
                 self.recommendations_df["action"] == "BUY"
@@ -1790,15 +1814,23 @@ Return ONLY valid JSON with the following structure:
 
             # Add LONG positions (BUY recommendations)
             for token in list(buy_recommendations["token"]):
+                amount = round(margin_per_position, 2)
+                if token in open_positions and open_positions[token]["is_long"]:
+                    cprint(f"⏸️ Already LONG {token} — halving new allocation", "yellow")
+                    amount *= 0.5
                 allocations[token] = {
-                    'amount': round(margin_per_position, 2),
+                    'amount': amount,
                     'direction': 'LONG'
                 }
 
             # Add SHORT positions (SELL recommendations)
             for token in list(sell_recommendations["token"]):
+                amount = round(margin_per_position, 2)
+                if token in open_positions and not open_positions[token]["is_long"]:
+                    cprint(f"⏸️ Already SHORT {token} — halving new allocation", "yellow")
+                    amount *= 0.5
                 allocations[token] = {
-                    'amount': round(margin_per_position, 2),
+                    'amount': amount,
                     'direction': 'SHORT'
                 }
 
@@ -1862,22 +1894,18 @@ Return ONLY valid JSON with the following structure:
                     amount = alloc_info.get('amount', 0)
                     direction = alloc_info.get('direction', 'LONG')
                 else:
-                    # Backwards compatibility with old format (just amount)
                     amount = alloc_info
                     direction = 'LONG'
 
-                # Skip CASH allocations (USDC buffer)
                 if direction == 'CASH' or token in EXCLUDED_TOKENS:
                     print(f"💵 Keeping ${float(amount):.2f} in cash buffer")
                     continue
 
-                # Validate token for exchange
                 if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
                     if token not in SYMBOLS:
                         cprint(f"⚠️ Skipping {token} - not a valid {EXCHANGE} symbol", "yellow")
                         add_console_log(f"⚠️ Skipped invalid symbol: {token}", "warning")
                         continue
-                       
                 else:
                     if token not in MONITORED_TOKENS:
                         cprint(f"⚠️ Skipping {token} - not in monitored tokens", "yellow")
@@ -1889,25 +1917,33 @@ Return ONLY valid JSON with the following structure:
                 add_console_log(f"🎯 Processing {direction} {token} allocation: ${amount:.2f}", "info")
 
                 try:
-                    # Get position WITH direction info (not just USD value)
-                    try:
-                        if EXCHANGE == "HYPERLIQUID":
-                            pos_data = n.get_position(token, self.account)
-                        else:
-                            pos_data = n.get_position(token)
+                    if EXCHANGE == "HYPERLIQUID":
+                        pos_data = n.get_position(token, self.account)
+                    else:
+                        pos_data = n.get_position(token)
 
-                        _, im_in_pos, pos_size, _, entry_px, pnl_perc, current_is_long = pos_data
-                        current_position = abs(float(pos_size) * float(entry_px)) if im_in_pos else 0
-                    except Exception:
-                        im_in_pos = False
-                        current_is_long = True
-                        current_position = 0
-                        pos_size = 0
+                    _, im_in_pos, pos_size, _, entry_px, pnl_perc, current_is_long = pos_data
+                    current_position = abs(float(pos_size) * float(entry_px)) if im_in_pos else 0
+
+                    # --- NEW: partial reallocation / resize logic ------------
+                    target_value = float(amount) * LEVERAGE
+                    if im_in_pos and current_position > 0:
+                        diff = target_value - current_position
+                        if abs(diff) / target_value < 0.15:
+                            print(f"⏸️ {token} within ±15% of target exposure — keeping position size")
+                            continue
+                        elif diff < 0:
+                            print(f"🔄 Reducing {token} exposure by ${abs(diff):.2f}")
+                            try:
+                                n.partial_close(token, abs(diff), account=self.account)
+                                continue
+                            except Exception as e:
+                                cprint(f"⚠️ Partial close failed: {e}", "yellow")
+                    # ----------------------------------------------------------
 
                     target_allocation = amount
                     target_is_long = (direction == "LONG")
 
-                    # Calculate effective trade size with leverage
                     if EXCHANGE in ["HYPERLIQUID", "ASTER"]:
                         effective_value = float(target_allocation) * LEVERAGE
                     else:
