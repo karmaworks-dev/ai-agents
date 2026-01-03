@@ -1628,7 +1628,7 @@ Return ONLY valid JSON with the following structure:
             return None
 
 
-def allocate_portfolio(self):
+   def allocate_portfolio(self):
         """
         Smart Portfolio Allocation - Equal Distribution
 
@@ -1806,7 +1806,7 @@ def allocate_portfolio(self):
             return None
 
 
-def execute_allocations(self, allocation_dict):
+   def execute_allocations(self, allocation_dict):
         """Execute the allocations using AI entry for each position (supports LONG and SHORT)"""
         try:
             print("\n🚀 Executing portfolio allocations...")
