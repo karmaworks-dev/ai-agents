@@ -1169,7 +1169,8 @@ def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
     """
     Closes an entire position immediately using reduce-only orders.
     Auto-detects Long/Short and sends opposing Market Order.
-    Includes retry logic for failed closes.
+    Includes retry logic with progressive slippage for failed closes.
+    Falls back to kill_switch if all retries fail.
     """
     try:
         from termcolor import colored
@@ -1184,10 +1185,13 @@ def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
 
     if not im_in_pos or pos_size == 0:
         print(f'{colored("⚠️ No position found to close!", "yellow")}')
-        return False
+        return True  # Return True since there's nothing to close (not an error)
 
     side = "LONG" if is_long else "SHORT"
     original_size = abs(pos_size)
+
+    # Progressive slippage: increase slippage on each retry
+    slippage_levels = [0.005, 0.01, 0.02]  # 0.5%, 1%, 2%
 
     # 2. Execute Opposing Order with retry logic
     for attempt in range(max_retries):
@@ -1204,6 +1208,9 @@ def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
             current_price = get_current_price(symbol)
             usd_amount = abs(pos_size) * current_price
 
+            # Use progressive slippage
+            current_slippage = slippage_levels[min(attempt, len(slippage_levels) - 1)]
+
             # Use direct exchange API with reduce_only=True for reliable closing
             from hyperliquid.exchange import Exchange
             from hyperliquid.utils import constants
@@ -1212,9 +1219,9 @@ def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
 
             if is_long:
                 # LONG -> SELL to close (reduce_only ensures we don't go short)
-                print(f"   [{attempt+1}/{max_retries}] Selling {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close LONG...")
+                print(f"   [{attempt+1}/{max_retries}] Selling {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close LONG (slippage: {current_slippage*100:.1f}%)...")
                 ask, bid, _ = ask_bid(symbol)
-                sell_price = bid * 0.998  # 0.2% below bid for faster fill
+                sell_price = bid * (1 - current_slippage)  # Dynamic slippage
                 if symbol == 'BTC':
                     sell_price = round(sell_price)
                 else:
@@ -1230,9 +1237,9 @@ def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
                 )
             else:
                 # SHORT -> BUY to close (reduce_only ensures we don't go long)
-                print(f"   [{attempt+1}/{max_retries}] Buying {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close SHORT...")
+                print(f"   [{attempt+1}/{max_retries}] Buying {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close SHORT (slippage: {current_slippage*100:.1f}%)...")
                 ask, bid, _ = ask_bid(symbol)
-                buy_price = ask * 1.002  # 0.2% above ask for faster fill
+                buy_price = ask * (1 + current_slippage)  # Dynamic slippage
                 if symbol == 'BTC':
                     buy_price = round(buy_price)
                 else:
@@ -1275,7 +1282,24 @@ def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
                 import traceback
                 traceback.print_exc()
 
-    # All retries exhausted
-    print(f'{colored(f"❌ Failed to close {symbol} after {max_retries} attempts", "red")}')
-    add_console_log(f"❌ Failed to close {symbol}", "error")
-    return False
+    # All retries exhausted - FALLBACK to kill_switch for aggressive close
+    print(f'{colored(f"⚠️ IOC retries exhausted. Falling back to kill_switch for {symbol}...", "yellow")}')
+
+    try:
+        kill_switch(symbol, account)
+        # Verify close
+        time.sleep(0.5)
+        pos_data = get_position(symbol, account)
+        _, still_in_pos, new_size, _, _, _, _ = pos_data
+        if not still_in_pos or abs(new_size) < 0.0001:
+            print(f'{colored("✅ Position closed via kill_switch fallback!", "green")}')
+            add_console_log(f"✔️ Closed {side} {symbol} (fallback)", "trade")
+            return True
+        else:
+            print(f'{colored(f"❌ kill_switch failed to close {symbol}", "red")}')
+            add_console_log(f"❌ Failed to close {symbol} - position still open", "error")
+            return False
+    except Exception as e:
+        print(f'{colored(f"❌ kill_switch fallback failed: {e}", "red")}')
+        add_console_log(f"❌ Failed to close {symbol}: {str(e)}", "error")
+        return False
