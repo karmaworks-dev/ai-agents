@@ -85,13 +85,14 @@ try:
     from src.utils.close_validator import (
         validate_close_decision, CloseDecision, ValidationResult,
         format_validation_result, STOP_LOSS_THRESHOLD, PROFIT_TARGET_THRESHOLD,
-        MIN_CONFIDENCE_TO_CLOSE
+        TAKE_PROFIT_THRESHOLD, MIN_CONFIDENCE_TO_CLOSE
     )
     CLOSE_VALIDATOR_AVAILABLE = True
 except ImportError:
     CLOSE_VALIDATOR_AVAILABLE = False
     STOP_LOSS_THRESHOLD = -2.0
     PROFIT_TARGET_THRESHOLD = 0.5
+    TAKE_PROFIT_THRESHOLD = 5.0
     MIN_CONFIDENCE_TO_CLOSE = 80
 
 # Import unified AI gateway
@@ -1184,6 +1185,12 @@ FULL DATASET:
                 add_console_log(f"STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
                 return True, result.reason
 
+            elif result.decision == CloseDecision.FORCE_TAKE_PROFIT:
+                cprint(f"   🎯 TIER {result.tier_triggered} (TAKE PROFIT): FORCE CLOSE", "green", attrs=["bold"])
+                cprint(f"   💡 {result.reason}", "green")
+                add_console_log(f"TAKE PROFIT: Closing {symbol} at +{pnl_percent:.2f}%", "success")
+                return True, result.reason
+
             elif result.decision == CloseDecision.CLOSE:
                 cprint(f"   ✅ TIER {result.tier_triggered} ({tier_name}): CLOSE APPROVED", "green", attrs=["bold"])
                 cprint(f"   📈 Confidence: {result.original_confidence}% → {result.adjusted_confidence}% (boost: +{result.confidence_boost}%)", "green")
@@ -1203,10 +1210,16 @@ FULL DATASET:
 
         # Fallback to simple validation if close validator not available
         else:
-            # Simple fallback: Stop loss at -2%, profit at +0.5%, otherwise keep
+            # Simple fallback: Stop loss at -2%, take profit at +5%, otherwise AI decides
             if pnl_percent <= STOP_LOSS_THRESHOLD:
                 cprint(f"   🚨 STOP LOSS TRIGGERED: {pnl_percent:.2f}%", "red", attrs=["bold"])
+                add_console_log(f"STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
                 return True, f"Stop loss at {pnl_percent:.2f}%"
+
+            if pnl_percent >= TAKE_PROFIT_THRESHOLD:
+                cprint(f"   🎯 TAKE PROFIT TRIGGERED: +{pnl_percent:.2f}%", "green", attrs=["bold"])
+                add_console_log(f"TAKE PROFIT: Closing {symbol} at +{pnl_percent:.2f}%", "success")
+                return True, f"Take profit at +{pnl_percent:.2f}%"
 
             if pnl_percent >= PROFIT_TARGET_THRESHOLD and ai_confidence >= MIN_CONFIDENCE_TO_CLOSE:
                 cprint(f"   ✅ PROFIT TARGET: {pnl_percent:.2f}%, confidence {ai_confidence}%", "green")

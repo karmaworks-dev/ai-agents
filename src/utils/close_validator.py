@@ -22,7 +22,10 @@ from enum import Enum
 # Stop Loss Threshold (Tier 0)
 STOP_LOSS_THRESHOLD = -2.0  # Force close at -2% or worse
 
-# Profit Target (Tier 1)
+# Take Profit Threshold (Tier 0) - FORCE CLOSE like stop loss
+TAKE_PROFIT_THRESHOLD = 5.0  # Force close at +5% or better
+
+# Profit Target (Tier 1) - AI decides
 PROFIT_TARGET_THRESHOLD = 0.5  # AI can decide at +0.5% or better
 
 # Age Thresholds (Tier 2)
@@ -43,6 +46,7 @@ MIN_CONFIDENCE_TO_CLOSE = 80  # Must have 80% adjusted confidence to close
 class CloseDecision(Enum):
     """Possible close decisions"""
     FORCE_CLOSE = "force_close"  # Stop loss triggered
+    FORCE_TAKE_PROFIT = "force_take_profit"  # Take profit triggered
     CLOSE = "close"  # AI recommended with sufficient confidence
     KEEP = "keep"  # Keep position open
     PROTECTED = "protected"  # Young position protected
@@ -103,7 +107,25 @@ def validate_close_decision(
         )
 
     # ========================================================================
-    # TIER 1: PROFIT TARGET ACHIEVEMENT
+    # TIER 0: TAKE PROFIT (FORCE CLOSE at +5%)
+    # ========================================================================
+    if pnl_percent >= TAKE_PROFIT_THRESHOLD:
+        return ValidationResult(
+            decision=CloseDecision.FORCE_TAKE_PROFIT,
+            reason=f"TAKE PROFIT: Position at +{pnl_percent:.2f}% (threshold: +{TAKE_PROFIT_THRESHOLD}%)",
+            original_confidence=ai_confidence,
+            adjusted_confidence=100.0,  # Forced
+            confidence_boost=0,
+            tier_triggered=0,
+            details={
+                "trigger": "take_profit",
+                "pnl": pnl_percent,
+                "threshold": TAKE_PROFIT_THRESHOLD
+            }
+        )
+
+    # ========================================================================
+    # TIER 1: PROFIT TARGET ACHIEVEMENT (AI decides between 0.5% and 5%)
     # ========================================================================
     if pnl_percent >= PROFIT_TARGET_THRESHOLD:
         # AI is allowed to decide at profit target

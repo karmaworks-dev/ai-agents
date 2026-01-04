@@ -3,6 +3,7 @@
 
 let updateInterval;
 let portfolioChart = null;
+let positionEventSource = null;
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', () => {
@@ -29,13 +30,56 @@ document.addEventListener('DOMContentLoaded', () => {
     updateConsole();
     updateTimestamp(); // Initialize timestamp with saved timezone
 
-    // Set up intervals
-    updateInterval = setInterval(updateDashboard, 10000); // Changed to 10000 (10s)
+    // Start SSE stream for real-time position updates
+    startPositionStream();
+
+    // Set up intervals (reduced frequency since positions use SSE)
+    updateInterval = setInterval(updateDashboard, 30000); // Account data every 30s
     setInterval(updateConsole, 10000);
     setInterval(updateTimestamp, 1000); // Update timestamp every second
 
-    console.log('✅ Dashboard ready - auto-refresh enabled');
+    console.log('✅ Dashboard ready - real-time positions via WebSocket');
 });
+
+// Start Server-Sent Events stream for real-time position updates
+function startPositionStream() {
+    if (positionEventSource) {
+        positionEventSource.close();
+    }
+
+    try {
+        positionEventSource = new EventSource('/api/positions/stream');
+
+        positionEventSource.onmessage = (event) => {
+            try {
+                const positions = JSON.parse(event.data);
+                if (!positions.error) {
+                    updatePositions(positions);
+                    console.log('[SSE] Position update received:', positions.length, 'positions');
+                }
+            } catch (e) {
+                console.error('[SSE] Parse error:', e);
+            }
+        };
+
+        positionEventSource.onerror = (error) => {
+            console.warn('[SSE] Connection error, will retry...');
+            // EventSource auto-reconnects, but we can add a fallback
+            if (positionEventSource.readyState === EventSource.CLOSED) {
+                setTimeout(startPositionStream, 5000);
+            }
+        };
+
+        positionEventSource.onopen = () => {
+            console.log('[SSE] Position stream connected');
+        };
+
+    } catch (e) {
+        console.error('[SSE] Failed to start stream:', e);
+        // Fall back to polling
+        console.log('[SSE] Falling back to polling');
+    }
+}
 
 
 // Main update function
@@ -195,8 +239,14 @@ function updateAgentBadge(isRunning, isExecuting = false) {
 function updatePositions(positions) {
     const container = document.getElementById('positions');
     const badge = document.getElementById('position-count');
+    const closeAllBtn = document.getElementById('close-all-btn');
 
     badge.textContent = positions.length;
+
+    // Show/hide Close All button
+    if (closeAllBtn) {
+        closeAllBtn.style.display = positions.length > 0 ? 'inline-flex' : 'none';
+    }
 
     if (!positions || positions.length === 0) {
         container.innerHTML = '<div class="empty-state">No open positions</div>';
@@ -236,17 +286,7 @@ function updatePositions(positions) {
                 </span>
             </div>
             <div class="position-item position-actions">
-                <span class="position-label">Actions</span>
-                <div class="position-buttons">
-                    <button class="btn-position-action btn-close-position" onclick="closePosition('${pos.symbol}')" title="Close Position">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        Close
-                    </button>
-                    <a href="https://app.hyperliquid.xyz/trade/${pos.symbol}" target="_blank" class="btn-position-action btn-chart" title="View Chart on Exchange">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
-                        Chart
-                    </a>
-                </div>
+                <button class="btn btn-small btn-danger" onclick="closePosition('${pos.symbol}')">Close</button>
             </div>
         </div>
     `).join('');
@@ -254,58 +294,57 @@ function updatePositions(positions) {
 
 // Close a single position
 async function closePosition(symbol) {
-    if (!confirm(`Are you sure you want to close your ${symbol} position?`)) {
+    if (!confirm(`Close ${symbol} position?`)) {
         return;
     }
 
     try {
         addConsoleMessage(`Closing ${symbol} position...`, 'info');
 
-        const response = await fetch(`/api/close-position/${symbol}`, {
-            method: 'POST'
+        const response = await fetch('/api/position/close', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol: symbol })
         });
 
         const data = await response.json();
 
         if (data.success) {
-            addConsoleMessage(`${symbol} position closed successfully`, 'success');
-            updateDashboard(); // Refresh data
+            addConsoleMessage(`Closed ${symbol} position`, 'success');
+            // Refresh positions
+            updateDashboard();
         } else {
-            addConsoleMessage(`Failed to close ${symbol}: ${data.message}`, 'error');
+            addConsoleMessage(`Failed to close ${symbol}: ${data.error}`, 'error');
         }
     } catch (error) {
         addConsoleMessage(`Error closing ${symbol}: ${error.message}`, 'error');
     }
 }
 
-// Close all positions - Panic Kill Switch
+// Close all positions
 async function closeAllPositions() {
-    if (!confirm('PANIC CLOSE: Are you sure you want to close ALL open positions immediately?')) {
-        return;
-    }
-
-    // Double confirmation for safety
-    if (!confirm('This action cannot be undone. Confirm to close ALL positions at market price.')) {
+    if (!confirm('Close ALL open positions? This cannot be undone.')) {
         return;
     }
 
     try {
-        addConsoleMessage('PANIC CLOSE - Closing all positions...', 'warning');
+        addConsoleMessage('Closing all positions...', 'info');
 
-        const response = await fetch('/api/close-all-positions', {
+        const response = await fetch('/api/positions/close-all', {
             method: 'POST'
         });
 
         const data = await response.json();
 
         if (data.success) {
-            addConsoleMessage(data.message, 'success');
-            updateDashboard(); // Refresh data
+            addConsoleMessage(`Closed ${data.closed_count} positions`, 'success');
+            // Refresh positions
+            updateDashboard();
         } else {
-            addConsoleMessage(`Failed to close all positions: ${data.message}`, 'error');
+            addConsoleMessage(`Failed to close positions: ${data.error}`, 'error');
         }
     } catch (error) {
-        addConsoleMessage(`Error closing all positions: ${error.message}`, 'error');
+        addConsoleMessage(`Error closing positions: ${error.message}`, 'error');
     }
 }
 
@@ -582,6 +621,9 @@ function setStatusOffline() {
 // Auto-update cleanup
 window.addEventListener('beforeunload', () => {
     clearInterval(updateInterval);
+    if (positionEventSource) {
+        positionEventSource.close();
+    }
 });
 
 // ============================================================================

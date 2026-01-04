@@ -260,6 +260,31 @@ html, body {
     border-color: var(--accent-blue);
 }
 
+.btn-danger {
+    background: rgba(255, 71, 87, 0.15);
+    color: var(--accent-red);
+    border: 1px solid var(--accent-red);
+}
+
+.btn-danger:hover {
+    background: var(--accent-red);
+    color: white;
+}
+
+/* Position Actions */
+.position-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.position-actions .btn {
+    min-width: 60px;
+}
+
 /* Account Summary */
 .account-summary {
     display: grid;

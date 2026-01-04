@@ -658,7 +658,7 @@ def get_account_data():
 
 
 def get_positions_data():
-    """Fetch ALL live open positions from HyperLiquid"""
+    """Fetch ALL live open positions from HyperLiquid using WebSocket (real-time)"""
     if not EXCHANGE_CONNECTED or n is None:
         print("⚠️ Exchange not connected or nice_funcs not loaded")
         return []
@@ -667,70 +667,93 @@ def get_positions_data():
         # Get account
         account = _get_account()
         address = os.getenv("ACCOUNT_ADDRESS", account.address)
-        
-        print(f"\n{'='*60}")
-        print(f"🔍 Fetching positions for address: {address}")
-        print(f"{'='*60}")
-        
-        # Import HyperLiquid SDK
+
+        # Try WebSocket first for real-time data
+        try:
+            from src.websocket import get_data_manager, is_websocket_connected
+
+            if is_websocket_connected():
+                dm = get_data_manager()
+                ws_positions = dm.get_all_positions(address)
+
+                if ws_positions:
+                    positions = []
+                    for pos in ws_positions:
+                        symbol = pos.get('coin', pos.get('symbol', 'Unknown'))
+                        size = pos.get('size', 0)
+
+                        if size == 0:
+                            continue
+
+                        entry_px = pos.get('entry_price', 0)
+                        pnl_perc = pos.get('pnl_percent', 0)
+                        is_long = size > 0
+                        side = "LONG" if is_long else "SHORT"
+
+                        # Get mark price from WebSocket
+                        try:
+                            mark_price = dm.get_current_price(symbol)
+                        except Exception:
+                            mark_price = entry_px
+
+                        position_value = abs(size) * mark_price
+
+                        positions.append({
+                            "symbol": symbol,
+                            "size": float(size),
+                            "entry_price": float(entry_px),
+                            "mark_price": float(mark_price),
+                            "position_value": float(position_value),
+                            "pnl_percent": float(pnl_perc),
+                            "side": side
+                        })
+
+                    print(f"📡 WebSocket: {len(positions)} positions (real-time)")
+                    return positions
+        except ImportError:
+            print("⚠️ WebSocket module not available, falling back to API")
+        except Exception as ws_err:
+            print(f"⚠️ WebSocket error: {ws_err}, falling back to API")
+
+        # Fallback to API polling
+        print(f"🔍 API fallback: Fetching positions for {address[:8]}...")
+
         from hyperliquid.info import Info
         from hyperliquid.utils import constants
-        
-        # Connect to HyperLiquid Info API
+
         info = Info(constants.MAINNET_API_URL, skip_ws=True)
         user_state = info.user_state(address)
-        
+
         positions = []
-        
-        # Check if assetPositions exists
+
         if "assetPositions" not in user_state:
-            print("❌ No 'assetPositions' field in user_state")
-            print(f"Available fields: {list(user_state.keys())}")
             return []
-        
+
         asset_positions = user_state["assetPositions"]
-        print(f"📊 Found {len(asset_positions)} asset position entries")
-        
-        # Loop through ALL asset positions
-        for idx, position in enumerate(asset_positions):
+
+        for position in asset_positions:
             try:
                 raw_pos = position.get("position", {})
                 symbol = raw_pos.get("coin", "Unknown")
                 pos_size = float(raw_pos.get("szi", 0))
-                
-                print(f"\n   Position {idx + 1}: {symbol} | Size: {pos_size}")
-                
-                # Only include non-zero positions
+
                 if pos_size == 0:
-                    print(f"   ⏭️  Skipping {symbol} (size = 0)")
                     continue
-                
-                # Get position details
+
                 entry_px = float(raw_pos.get("entryPx", 0))
                 pnl_perc = float(raw_pos.get("returnOnEquity", 0)) * 100
                 is_long = pos_size > 0
                 side = "LONG" if is_long else "SHORT"
-                
-                print(f"   📍 {symbol} {side} position detected!")
-                print(f"      Entry: ${entry_px:.2f} | PnL: {pnl_perc:.2f}%")
-                
-                # Fetch current mark price
+
                 try:
                     ask, bid, _ = n.ask_bid(symbol)
                     mark_price = (ask + bid) / 2
-                    print(f"      Mark price: ${mark_price:.2f}")
-                except Exception as price_err:
-                    print(f"      ⚠️ Could not fetch mark price: {price_err}")
+                except Exception:
                     mark_price = entry_px
-                    print(f"      Using entry price as fallback: ${mark_price:.2f}")
-                
-                # Calculate position value in USD
+
                 position_value = abs(pos_size) * mark_price
-                
-                print(f"      Position value: ${position_value:.2f}")
-                
-                # Add to positions array
-                position_obj = {
+
+                positions.append({
                     "symbol": symbol,
                     "size": float(pos_size),
                     "entry_price": float(entry_px),
@@ -738,39 +761,19 @@ def get_positions_data():
                     "position_value": float(position_value),
                     "pnl_percent": float(pnl_perc),
                     "side": side
-                }
-                
-                positions.append(position_obj)
-                
-                print(f"   ✅ Added to positions array: {symbol} {side}")
-                
+                })
+
             except Exception as pos_err:
-                print(f"   ❌ Error processing position {idx + 1}: {pos_err}")
-                import traceback
-                traceback.print_exc()
+                print(f"❌ Error processing position: {pos_err}")
                 continue
-        
-        print(f"\n{'='*60}")
-        print(f"✅ Total positions to return: {len(positions)}")
-        print(f"{'='*60}\n")
-        
-        # Log positions for debugging
-        if positions:
-            for pos in positions:
-                print(f"   • {pos['symbol']} {pos['side']}: ${pos['position_value']:.2f}")
-        else:
-            print("   (No open positions)")
-        
+
+        print(f"📊 API: {len(positions)} positions")
         return positions
 
     except Exception as e:
-        print(f"\n{'='*60}")
-        print(f"❌ CRITICAL ERROR in get_positions_data()")
-        print(f"{'='*60}")
-        print(f"Error: {e}")
+        print(f"❌ Error in get_positions_data(): {e}")
         import traceback
         traceback.print_exc()
-        print(f"{'='*60}\n")
         return []
 
 
@@ -1168,6 +1171,126 @@ def get_data():
             "status": "Error",
             "agent_running": False
         }), 500
+
+
+@app.route('/api/positions/stream')
+@login_required
+def stream_positions():
+    """SSE endpoint for real-time position updates via WebSocket"""
+    def generate():
+        import time
+        last_positions = None
+
+        while True:
+            try:
+                positions = get_positions_data()
+                positions_json = json.dumps(positions)
+
+                # Only send if changed
+                if positions_json != last_positions:
+                    last_positions = positions_json
+                    yield f"data: {positions_json}\n\n"
+
+                # Check every 500ms for WebSocket updates
+                time.sleep(0.5)
+
+            except GeneratorExit:
+                break
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                time.sleep(1)
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    )
+
+
+@app.route('/api/position/close', methods=['POST'])
+@login_required
+def close_position():
+    """API endpoint to close a single position"""
+    if not EXCHANGE_CONNECTED or n is None:
+        return jsonify({"success": False, "error": "Exchange not connected"}), 400
+
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol')
+
+        if not symbol:
+            return jsonify({"success": False, "error": "Symbol required"}), 400
+
+        account = _get_account()
+        print(f"📉 Closing position for {symbol}...")
+        add_console_log(f"Closing {symbol} position (manual)", "info")
+
+        result = n.close_complete_position(symbol, account)
+
+        if result:
+            add_console_log(f"Closed {symbol} position", "trade")
+            return jsonify({"success": True, "symbol": symbol})
+        else:
+            return jsonify({"success": False, "error": "Failed to close position"}), 500
+
+    except Exception as e:
+        print(f"❌ Error closing position: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/positions/close-all', methods=['POST'])
+@login_required
+def close_all_positions():
+    """API endpoint to close all positions"""
+    if not EXCHANGE_CONNECTED or n is None:
+        return jsonify({"success": False, "error": "Exchange not connected"}), 400
+
+    try:
+        account = _get_account()
+        positions = get_positions_data()
+
+        if not positions:
+            return jsonify({"success": True, "closed_count": 0, "message": "No positions to close"})
+
+        closed_count = 0
+        errors = []
+
+        add_console_log(f"Closing all {len(positions)} positions (manual)", "info")
+
+        for pos in positions:
+            symbol = pos['symbol']
+            try:
+                print(f"📉 Closing {symbol}...")
+                result = n.close_complete_position(symbol, account)
+                if result:
+                    closed_count += 1
+                    add_console_log(f"Closed {symbol}", "trade")
+                else:
+                    errors.append(f"{symbol}: close failed")
+            except Exception as e:
+                errors.append(f"{symbol}: {str(e)}")
+
+        if closed_count > 0:
+            add_console_log(f"Closed {closed_count}/{len(positions)} positions", "success")
+
+        return jsonify({
+            "success": True,
+            "closed_count": closed_count,
+            "total": len(positions),
+            "errors": errors if errors else None
+        })
+
+    except Exception as e:
+        print(f"❌ Error closing all positions: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route('/api/trades')
@@ -2317,6 +2440,20 @@ atexit.register(lambda: cleanup_and_exit() if not shutdown_in_progress else None
 if __name__ == '__main__':
     # Get port from environment or default to 5000
     port = int(os.getenv('PORT', 5000))
+
+    # Start WebSocket feeds for real-time data
+    print("📡 Starting WebSocket feeds...")
+    try:
+        from src.websocket import start_websocket_feeds, is_websocket_connected
+        start_websocket_feeds()
+        if is_websocket_connected():
+            print("✅ WebSocket feeds connected (real-time positions enabled)")
+        else:
+            print("⚠️ WebSocket feeds started but not yet connected")
+    except ImportError:
+        print("⚠️ WebSocket module not available - using API polling")
+    except Exception as ws_err:
+        print(f"⚠️ WebSocket initialization failed: {ws_err}")
 
     # Start log writer thread
     print("🚀 Starting async log writer...")

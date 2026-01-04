@@ -1165,10 +1165,11 @@ def open_short(token, amount, slippage=None, leverage=DEFAULT_LEVERAGE, account=
     
     # close positions in opposite trade direction
 
-def close_complete_position(symbol, account, slippage=0.01):
+def close_complete_position(symbol, account, slippage=0.01, max_retries=3):
     """
-    Closes an entire position immediately (No chunking).
+    Closes an entire position immediately using reduce-only orders.
     Auto-detects Long/Short and sends opposing Market Order.
+    Includes retry logic for failed closes.
     """
     try:
         from termcolor import colored
@@ -1176,7 +1177,7 @@ def close_complete_position(symbol, account, slippage=0.01):
         def colored(text, color): return text
 
     print(f'{colored(f"📉 Closing complete position for {symbol}...", "yellow")}')
-    
+
     # 1. Get current position size & direction
     pos_data = get_position(symbol, account)
     _, im_in_pos, pos_size, _, _, _, is_long = pos_data
@@ -1185,43 +1186,96 @@ def close_complete_position(symbol, account, slippage=0.01):
         print(f'{colored("⚠️ No position found to close!", "yellow")}')
         return False
 
-    # 2. Execute Opposing Order
-    try:
-        # CRITICAL FIX: Convert pos_size (in COINS) to USD amount
-        # market_buy/market_sell expect USD amounts, not coin amounts
-        current_price = get_current_price(symbol)
-        usd_amount = abs(pos_size) * current_price
+    side = "LONG" if is_long else "SHORT"
+    original_size = abs(pos_size)
 
-        if is_long:
-            # We are LONG, so we MARKET SELL to close
-            print(f"   Selling {pos_size} {symbol} (${usd_amount:.2f}) to close LONG...")
-            market_sell(symbol, usd_amount, slippage=slippage, account=account)
-        else:
-            # We are SHORT, so we MARKET BUY to close
-            print(f"   Buying {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close SHORT...")
-            market_buy(symbol, usd_amount, slippage=slippage, account=account)
-            
-        print(f'{colored("✅ Position closed successfully!", "green")}')
-
-        # Log to dashboard - verify position was actually closed
+    # 2. Execute Opposing Order with retry logic
+    for attempt in range(max_retries):
         try:
-            side = "LONG" if is_long else "SHORT"
-            # Check if position was fully closed
-            time.sleep(0.5)  # Brief delay to allow exchange to update
-            new_pos_data = get_position(symbol, account)
-            _, still_in_pos, new_size, _, _, _, _ = new_pos_data
+            # Re-check position before each attempt
+            if attempt > 0:
+                time.sleep(1)
+                pos_data = get_position(symbol, account)
+                _, im_in_pos, pos_size, _, _, _, is_long = pos_data
+                if not im_in_pos or pos_size == 0:
+                    print(f'{colored("✅ Position already closed!", "green")}')
+                    return True
 
-            if not still_in_pos or new_size == 0:
-                add_console_log(f"✔️ Closed Full {side} {symbol}", "trade")
+            current_price = get_current_price(symbol)
+            usd_amount = abs(pos_size) * current_price
+
+            # Use direct exchange API with reduce_only=True for reliable closing
+            from hyperliquid.exchange import Exchange
+            from hyperliquid.utils import constants
+
+            exchange = Exchange(account, constants.MAINNET_API_URL)
+
+            if is_long:
+                # LONG -> SELL to close (reduce_only ensures we don't go short)
+                print(f"   [{attempt+1}/{max_retries}] Selling {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close LONG...")
+                ask, bid, _ = ask_bid(symbol)
+                sell_price = bid * 0.998  # 0.2% below bid for faster fill
+                if symbol == 'BTC':
+                    sell_price = round(sell_price)
+                else:
+                    sell_price = round(sell_price, 1)
+
+                sz_decimals, _ = get_sz_px_decimals(symbol)
+                order_size = round(abs(pos_size), sz_decimals)
+
+                order_result = exchange.order(
+                    symbol, False, order_size, sell_price,
+                    {"limit": {"tif": "Ioc"}},
+                    reduce_only=True  # CRITICAL: Ensures we only close
+                )
             else:
-                reduction_amount = pos_size - new_size
-                reduction_pct = (reduction_amount / pos_size) * 100 if pos_size > 0 else 0
-                add_console_log(f"✔️ Reduced {side} {symbol} by {reduction_pct:.0f}% (${reduction_amount:.2f} remaining: ${new_size:.2f})", "trade")
-        except Exception:
-            pass
+                # SHORT -> BUY to close (reduce_only ensures we don't go long)
+                print(f"   [{attempt+1}/{max_retries}] Buying {abs(pos_size)} {symbol} (${usd_amount:.2f}) to close SHORT...")
+                ask, bid, _ = ask_bid(symbol)
+                buy_price = ask * 1.002  # 0.2% above ask for faster fill
+                if symbol == 'BTC':
+                    buy_price = round(buy_price)
+                else:
+                    buy_price = round(buy_price, 1)
 
-        return True
+                sz_decimals, _ = get_sz_px_decimals(symbol)
+                order_size = round(abs(pos_size), sz_decimals)
 
-    except Exception as e:
-        print(f'{colored("❌ Error executing close:", "red")} {e}')
-        return False
+                order_result = exchange.order(
+                    symbol, True, order_size, buy_price,
+                    {"limit": {"tif": "Ioc"}},
+                    reduce_only=True  # CRITICAL: Ensures we only close
+                )
+
+            # Check order result
+            if order_result and order_result.get('status') == 'ok':
+                # Verify position was closed
+                time.sleep(0.5)
+                new_pos_data = get_position(symbol, account)
+                _, still_in_pos, new_size, _, _, _, _ = new_pos_data
+
+                if not still_in_pos or abs(new_size) < 0.0001:
+                    print(f'{colored("✅ Position closed successfully!", "green")}')
+                    add_console_log(f"✔️ Closed {side} {symbol}", "trade")
+                    return True
+                else:
+                    remaining_pct = (abs(new_size) / original_size) * 100
+                    print(f'{colored(f"⚠️ Partial close: {remaining_pct:.1f}% remaining", "yellow")}')
+                    if remaining_pct < 5:  # Less than 5% remaining is acceptable
+                        add_console_log(f"✔️ Closed {side} {symbol} (dust remaining)", "trade")
+                        return True
+                    # Continue to retry
+            else:
+                error_msg = order_result.get('response', {}).get('error', 'Unknown error') if order_result else 'No response'
+                print(f'{colored(f"❌ Order failed: {error_msg}", "red")}')
+
+        except Exception as e:
+            print(f'{colored(f"❌ Error on attempt {attempt+1}: {e}", "red")}')
+            if attempt == max_retries - 1:
+                import traceback
+                traceback.print_exc()
+
+    # All retries exhausted
+    print(f'{colored(f"❌ Failed to close {symbol} after {max_retries} attempts", "red")}')
+    add_console_log(f"❌ Failed to close {symbol}", "error")
+    return False
