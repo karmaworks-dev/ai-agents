@@ -56,12 +56,12 @@
             <div class="summary-item">
                 <span class="label">Equity</span>
                 <span class="value" id="equity">$0.00</span>
-                <span class="sublabel">Including Positions</span>
+                <span class="sublabel">Total</span>
             </div>
             <div class="summary-item">
-                <span class="label">USDC Balance</span>
+                <span class="label">Balance</span>
                 <span class="value" id="balance">$0.00</span>
-                <span class="sublabel">Free USDC</span>
+                <span class="sublabel">USDC avail.</span>
             </div>
             <div class="summary-item">
                 <span class="label">P&L</span>
@@ -79,7 +79,23 @@
         <div class="main-content">
             <!-- Left Panel: Positions & Trades -->
             <div class="panel">
-                <!-- Positions -->
+                
+                <!-- Portfolio Evolution -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Portfolio</h2>
+                        <span class="badge" id="portfolio-change">0%</span>
+                    </div>
+                    <div class="portfolio-chart" id="portfolio-chart">
+                        <!-- Chart will be rendered here -->
+                    </div>
+                    <div class="trades-container" id="trades">
+                        <div class="empty-state">No recent trades</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Positions -->
                 <div class="card">
                     <div class="card-header">
                         <h2>Open Positions</h2>
@@ -95,21 +111,6 @@
                         </button>
                     </div>
                 </div>
-
-                <!-- Portfolio Evolution -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Portfolio</h2>
-                        <span class="badge" id="portfolio-change">0%</span>
-                    </div>
-                    <div class="portfolio-chart" id="portfolio-chart">
-                        <!-- Chart will be rendered here -->
-                    </div>
-                    <div class="trades-container" id="trades">
-                        <div class="empty-state">No recent trades</div>
-                    </div>
-                </div>
-            </div>
 
             <!-- Right Panel: Console -->
             <div class="console-panel">
@@ -127,7 +128,7 @@
 
         <!-- Footer -->
         <footer class="footer">
-            <p>Auto-updates every 10 seconds • 60-minute trading cycles • HyperLiquid Exchange</p>
+            <p>Auto-updates • AI automated trading cycles • HyperLiquid Exchange</p>
         </footer>
     </div>
 
@@ -143,15 +144,15 @@
             <div class="settings-tabs">
                 <button class="settings-tab active" data-tab="chart" onclick="switchSettingsTab('chart')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
-                    CHART
+                    SIGNAL
                 </button>
                 <button class="settings-tab" data-tab="mode" onclick="switchSettingsTab('mode')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6"></path></svg>
-                    MODE
+                    MODUS
                 </button>
                 <button class="settings-tab" data-tab="token" onclick="switchSettingsTab('token')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v12m-6-6h12"></path></svg>
-                    TOKEN
+                    ASSETS
                 </button>
                 <button class="settings-tab" data-tab="models" onclick="switchSettingsTab('models')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg>
