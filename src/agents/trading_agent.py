@@ -1705,8 +1705,8 @@ Return ONLY valid JSON with the following structure:
                     ignore_index=True,
                 )
 
-                add_console_log(f"🎯 AI Analysis Complete for {token[:4]}!", "success")
-                add_console_log(f"{token} -> {action} | {confidence}%", "info")
+                add_console_log(f"Analysis Complete for {token[:4]}...", "info")
+                add_console_log(f"{token} -> {action} | {confidence}%", "success")
 
                 return response
 
@@ -1857,7 +1857,7 @@ Return ONLY valid JSON with the following structure:
             # STEP 5: Ask AI for Allocation Plan
             # ================================================================
             cprint("\n🧠 Consulting AI for optimal allocation...", "magenta", attrs=["bold"])
-            add_console_log("🧠 AI analyzing allocation...", "info")
+            add_console_log("Agent is analyzing allocation...", "info")
 
             prompt = SMART_ALLOCATION_PROMPT.format(
                 portfolio_state=portfolio_state,
@@ -1940,7 +1940,7 @@ Return ONLY valid JSON with the following structure:
                     cprint(f"\n   💡 Strategy: {allocation_plan['reasoning']}", "magenta")
 
                 cprint("=" * 60 + "\n", "green")
-                add_console_log(f"AI allocation plan: {len(valid_actions)} actions", "success")
+                add_console_log(f"Planned {len(valid_actions)} actions", "info")
 
                 return valid_actions
 
@@ -2042,7 +2042,7 @@ Return ONLY valid JSON with the following structure:
             cprint("\n" + "=" * 60, "yellow")
             cprint("🚀 EXECUTING AI ALLOCATION PLAN", "white", "on_yellow", attrs=["bold"])
             cprint("=" * 60, "yellow")
-            add_console_log(f"🚀 Executing {len(actions_list)} allocation actions", "info")
+            add_console_log(f"Executing {len(actions_list)} allocation actions", "info")
 
             # Sort actions: CLOSE first, then REDUCE, then OPEN/INCREASE
             # This ensures we free up capital before opening new positions
@@ -2301,7 +2301,7 @@ Return ONLY valid JSON with the following structure:
         3. OPEN new positions (execute_allocations)
         """
         cprint("\n🔄 PHASE 1: Checking for positions to exit...", "white", "on_blue")
-        add_console_log("🔄 Phase 1: Evaluating positions...", "info")
+        add_console_log("Evaluating positions...", "info")
 
         positions_closed = 0
         positions_held = 0
@@ -2370,7 +2370,7 @@ Return ONLY valid JSON with the following structure:
                                 remove_position(token)
 
                             cprint("✅ Stop loss position closed successfully!", "white", "on_green")
-                            add_console_log(f"🚨 STOP LOSS: Closed {token} {position_dir} at {pnl_perc:.2f}%", "warning")
+                            add_console_log(f"STOP LOSS: Closed {token} {position_dir} at {pnl_perc:.2f}%", "warning")
                             positions_closed += 1
                         else:
                             cprint("⚠️ Stop loss close may have failed - will retry next cycle", "white", "on_yellow")
@@ -2456,7 +2456,7 @@ Return ONLY valid JSON with the following structure:
         cprint(f"\n{'=' * 60}", "green")
         cprint(f"✅ PHASE 1 COMPLETE: Closed {positions_closed}, Held {positions_held} positions", "green", attrs=["bold"])
         cprint(f"{'=' * 60}", "green")
-        add_console_log(f"Phase 1 complete: Closed {positions_closed}, Held {positions_held}", "success")
+        add_console_log(f"Closed {positions_closed}, Held {positions_held}", "success")
 
     def show_final_portfolio_report(self):
         """Display final portfolio status - NO LOOPS, just a snapshot"""
@@ -2514,7 +2514,7 @@ Return ONLY valid JSON with the following structure:
             cprint(f"🔄 TRADING CYCLE START: {current_time}", "white", "on_green", attrs=["bold"])
             cprint(f"{'=' * 80}", "cyan")
 
-            add_console_log(f"🔄 TRADING CYCLE STARTED", "info")
+            add_console_log(f"TRADING CYCLE STARTED", "info")
 
             # CRITICAL FIX: Reset recommendations_df at the start of each cycle
             self.recommendations_df = pd.DataFrame(
@@ -2630,7 +2630,7 @@ Return ONLY valid JSON with the following structure:
                 cprint(f"\n{'=' * 80}", "yellow")
                 cprint(f"🚀 {mode_name} MODE — AI-Driven Allocation Pipeline", "white", "on_yellow", attrs=["bold"])
                 cprint(f"{'=' * 80}", "yellow")
-                add_console_log(f"🚀 {mode_name} mode — starting allocation pipeline", "info")
+                add_console_log(f"{mode_name} mode — starting allocations", "info")
 
                 # Phase 1: Close contradictory positions (signals vs positions)
                 cprint("\n📌 PHASE 1: Exit Contradictory Positions", "yellow", attrs=["bold"])
@@ -2733,7 +2733,7 @@ def main():
 
         except KeyboardInterrupt:
             cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
-            add_console_log("👋 AI Agent shutting down gracefully...", "info")
+            add_console_log("👋 Agent shutting down gracefully...", "info")
             break
         except Exception as e:
             cprint(f"\n❌ Error in main loop: {e}", "white", "on_red")
