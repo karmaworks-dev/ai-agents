@@ -398,7 +398,6 @@ margin-left: -4px;
 }
 
 .card:hover {
-    transform: translateY(-2px);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
 }
 
@@ -514,6 +513,49 @@ margin-left: -4px;
 .side.short {
     background: rgba(255, 71, 87, 0.15);
     color: var(--accent-red);
+}
+
+.position {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.position-row {
+    display: grid;
+    grid-template-columns: 100px 100px 120px 120px 120px 150px;
+    gap: 16px;
+    align-items: center;
+}
+
+.position-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.symbol-long {
+    background: linear-gradient(to right, rgba(0, 255, 136, 0.2), transparent);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.symbol-short {
+    background: linear-gradient(to right, rgba(255, 71, 87, 0.2), transparent);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.position-actions-row {
+    display: flex;
+    gap: 8px;
+    padding-left: 0;
 }
 
 /* Position Action Buttons */
