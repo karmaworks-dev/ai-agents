@@ -1371,6 +1371,24 @@ textarea.setting-input {
     color: var(--accent-green);
 }
 
+.token-chip.token-invalid {
+    background: rgba(255, 107, 107, 0.1);
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    opacity: 0.7;
+}
+
+.token-chip.token-invalid::after {
+    content: '⚠';
+    font-size: 10px;
+    margin-left: 4px;
+}
+
+.token-chip.token-invalid:hover::after {
+    content: ' Not on exchange';
+    font-size: 10px;
+}
+
 .token-chip .token-symbol {
     font-weight: 600;
 }

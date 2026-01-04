@@ -2145,35 +2145,46 @@ Return ONLY valid JSON with the following structure:
                         cprint(f"   📈 Opening LONG: ${notional:.2f} notional (${margin_usd:.2f} margin)", "green")
 
                         # Execute trade and verify success
-                        result = None
-                        if EXCHANGE == "HYPERLIQUID":
-                            result = n.ai_entry(symbol, notional, leverage=LEVERAGE, account=self.account)
-                        elif EXCHANGE == "ASTER":
-                            result = n.ai_entry(symbol, notional, leverage=LEVERAGE)
-                        else:
-                            result = n.ai_entry(symbol, notional)
+                        try:
+                            result = None
+                            if EXCHANGE == "HYPERLIQUID":
+                                result = n.ai_entry(symbol, notional, leverage=LEVERAGE, account=self.account)
+                            elif EXCHANGE == "ASTER":
+                                result = n.ai_entry(symbol, notional, leverage=LEVERAGE)
+                            else:
+                                result = n.ai_entry(symbol, notional)
 
-                        # Verify trade executed successfully
-                        if result:
-                            cprint(f"   ✅ LONG position opened!", "green")
-                            add_console_log(f"✅ Opened LONG {symbol} ${notional:.2f}", "success")
+                            # Verify trade executed successfully
+                            if result:
+                                cprint(f"   ✅ LONG position opened!", "green")
+                                add_console_log(f"✅ Opened LONG {symbol} ${notional:.2f}", "success")
 
-                            # Record in tracker
-                            if POSITION_TRACKER_AVAILABLE:
+                                # Record in tracker
+                                if POSITION_TRACKER_AVAILABLE:
+                                    try:
+                                        record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=True)
+                                    except Exception as e:
+                                        cprint(f"   ⚠️ Position tracker error: {e}", "yellow")
+
                                 try:
-                                    record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=True)
+                                    log_position_open(symbol, "LONG", notional)
                                 except Exception as e:
-                                    cprint(f"   ⚠️ Position tracker error: {e}", "yellow")
+                                    cprint(f"   ⚠️ Position log error: {e}", "yellow")
 
-                            try:
-                                log_position_open(symbol, "LONG", notional)
-                            except Exception as e:
-                                cprint(f"   ⚠️ Position log error: {e}", "yellow")
+                                executed_count += 1
+                            else:
+                                cprint(f"   ❌ LONG position failed to open (no result returned)", "red")
+                                add_console_log(f"❌ {symbol} LONG failed (no result)", "error")
+                                failed_count += 1
 
-                            executed_count += 1
-                        else:
-                            cprint(f"   ❌ LONG position failed to open (no result returned)", "red")
-                            add_console_log(f"❌ {symbol} LONG failed (no result)", "error")
+                        except ValueError as ve:
+                            # Symbol not available on exchange
+                            cprint(f"   ❌ LONG failed: {symbol} not available on exchange", "red")
+                            add_console_log(f"❌ {symbol} not available on Hyperliquid - skipped", "error")
+                            failed_count += 1
+                        except Exception as trade_err:
+                            cprint(f"   ❌ LONG trade error: {trade_err}", "red")
+                            add_console_log(f"❌ {symbol} LONG failed: {str(trade_err)[:50]}", "error")
                             failed_count += 1
 
                     # ============================================================
@@ -2203,38 +2214,49 @@ Return ONLY valid JSON with the following structure:
                         cprint(f"   📉 Opening SHORT: ${notional:.2f} notional (${margin_usd:.2f} margin)", "red")
 
                         # Execute trade and verify success
-                        result = None
-                        if EXCHANGE == "HYPERLIQUID":
-                            result = n.open_short(symbol, notional, leverage=LEVERAGE, account=self.account)
-                        elif EXCHANGE == "ASTER":
-                            if hasattr(n, 'open_short'):
-                                result = n.open_short(symbol, notional, leverage=LEVERAGE)
-                            else:
-                                cprint(f"   ⚠️ open_short not available for ASTER", "yellow")
-                                failed_count += 1
-                                continue
+                        try:
+                            result = None
+                            if EXCHANGE == "HYPERLIQUID":
+                                result = n.open_short(symbol, notional, leverage=LEVERAGE, account=self.account)
+                            elif EXCHANGE == "ASTER":
+                                if hasattr(n, 'open_short'):
+                                    result = n.open_short(symbol, notional, leverage=LEVERAGE)
+                                else:
+                                    cprint(f"   ⚠️ open_short not available for ASTER", "yellow")
+                                    failed_count += 1
+                                    continue
 
-                        # Verify trade executed successfully
-                        if result:
-                            cprint(f"   ✅ SHORT position opened!", "green")
-                            add_console_log(f"✅ Opened SHORT {symbol} ${notional:.2f}", "success")
+                            # Verify trade executed successfully
+                            if result:
+                                cprint(f"   ✅ SHORT position opened!", "green")
+                                add_console_log(f"✅ Opened SHORT {symbol} ${notional:.2f}", "success")
 
-                            # Record in tracker
-                            if POSITION_TRACKER_AVAILABLE:
+                                # Record in tracker
+                                if POSITION_TRACKER_AVAILABLE:
+                                    try:
+                                        record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=False)
+                                    except Exception as e:
+                                        cprint(f"   ⚠️ Position tracker error: {e}", "yellow")
+
                                 try:
-                                    record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=False)
+                                    log_position_open(symbol, "SHORT", notional)
                                 except Exception as e:
-                                    cprint(f"   ⚠️ Position tracker error: {e}", "yellow")
+                                    cprint(f"   ⚠️ Position log error: {e}", "yellow")
 
-                            try:
-                                log_position_open(symbol, "SHORT", notional)
-                            except Exception as e:
-                                cprint(f"   ⚠️ Position log error: {e}", "yellow")
+                                executed_count += 1
+                            else:
+                                cprint(f"   ❌ SHORT position failed to open (no result returned)", "red")
+                                add_console_log(f"❌ {symbol} SHORT failed (no result)", "error")
+                                failed_count += 1
 
-                            executed_count += 1
-                        else:
-                            cprint(f"   ❌ SHORT position failed to open (no result returned)", "red")
-                            add_console_log(f"❌ {symbol} SHORT failed (no result)", "error")
+                        except ValueError as ve:
+                            # Symbol not available on exchange
+                            cprint(f"   ❌ SHORT failed: {symbol} not available on exchange", "red")
+                            add_console_log(f"❌ {symbol} not available on Hyperliquid - skipped", "error")
+                            failed_count += 1
+                        except Exception as trade_err:
+                            cprint(f"   ❌ SHORT trade error: {trade_err}", "red")
+                            add_console_log(f"❌ {symbol} SHORT failed: {str(trade_err)[:50]}", "error")
                             failed_count += 1
 
                     else:

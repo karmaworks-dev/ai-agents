@@ -668,10 +668,10 @@ function switchSettingsTab(tabName) {
 // Load all settings from API
 async function loadSettings() {
     try {
-        // Load settings, tokens, and models in parallel
+        // Load settings, tokens (live from Hyperliquid), and models in parallel
         const [settingsRes, tokensRes, modelsRes] = await Promise.all([
             fetch('/api/settings'),
-            fetch('/api/tokens'),
+            fetch('/api/tokens?live=true'),  // Fetch live tokens from Hyperliquid
             fetch('/api/ai-models')
         ]);
 
@@ -683,6 +683,11 @@ async function loadSettings() {
         if (tokensData.success) {
             availableTokens = tokensData.categories;
             populateTokenCategories();
+
+            // Show source indicator
+            if (tokensData.source === 'live') {
+                console.log(`✅ Loaded ${tokensData.total_count} live tokens from Hyperliquid`);
+            }
         }
 
         if (modelsData.success) {
@@ -694,11 +699,49 @@ async function loadSettings() {
         // Apply settings
         if (settingsData.success) {
             applySettings(settingsData.settings);
+
+            // Validate user's selected tokens against Hyperliquid
+            await validateSelectedTokens(settingsData.settings.monitored_tokens || []);
         }
 
     } catch (error) {
         console.error('Error loading settings:', error);
         showValidationMessage('Failed to load settings', 'error');
+    }
+}
+
+// Validate that selected tokens exist on Hyperliquid
+async function validateSelectedTokens(tokens) {
+    if (!tokens || tokens.length === 0) return;
+
+    try {
+        const response = await fetch('/api/tokens/validate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tokens: tokens })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.invalid && data.invalid.length > 0) {
+            // Show warning for invalid tokens
+            const invalidList = data.invalid.join(', ');
+            showValidationMessage(
+                `Warning: ${data.invalid.length} token(s) not available on Hyperliquid: ${invalidList}. These will be skipped during trading.`,
+                'warning'
+            );
+
+            // Mark invalid tokens in the UI
+            data.invalid.forEach(symbol => {
+                const chip = document.querySelector(`.token-chip[data-symbol="${symbol}"]`);
+                if (chip) {
+                    chip.classList.add('token-invalid');
+                    chip.title = 'Not available on Hyperliquid';
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error validating tokens:', error);
     }
 }
 

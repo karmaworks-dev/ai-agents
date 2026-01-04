@@ -71,6 +71,44 @@ def adjust_timestamp(dt):
         return corrected_dt
     return dt
 
+def get_hyperliquid_universe():
+    """
+    Get all available symbols from Hyperliquid universe.
+    Returns a dict mapping symbol names to their metadata.
+    """
+    url = 'https://api.hyperliquid.xyz/info'
+    headers = {'Content-Type': 'application/json'}
+    data = {'type': 'meta'}
+
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(data))
+        if response.status_code == 200:
+            meta = response.json()
+            universe = {coin['name']: coin for coin in meta.get('universe', [])}
+            return universe
+        return {}
+    except Exception as e:
+        print(f"❌ Error getting Hyperliquid universe: {e}")
+        return {}
+
+
+def validate_symbol(symbol):
+    """
+    Validate that a symbol exists on Hyperliquid.
+    Returns (is_valid, symbol_info) tuple.
+    """
+    universe = get_hyperliquid_universe()
+    if symbol in universe:
+        return True, universe[symbol]
+
+    # Try uppercase
+    symbol_upper = symbol.upper()
+    if symbol_upper in universe:
+        return True, universe[symbol_upper]
+
+    return False, None
+
+
 def ask_bid(symbol):
     """Get ask and bid prices for a symbol"""
     url = 'https://api.hyperliquid.xyz/info'
@@ -92,17 +130,21 @@ def ask_bid(symbol):
 
         # Validate response structure
         if 'levels' not in l2_data:
-            raise Exception(f"Invalid API response: missing 'levels' key")
+            raise Exception(f"Invalid API response: missing 'levels' key. Symbol '{symbol}' may not exist on Hyperliquid.")
 
         levels = l2_data['levels']
 
         # Validate levels structure
         if len(levels) < 2 or len(levels[0]) == 0 or len(levels[1]) == 0:
-            raise Exception(f"Invalid order book structure for {symbol}")
+            raise Exception(f"Invalid order book structure for {symbol}. Symbol may not exist on Hyperliquid.")
 
         # get bid and ask
         bid = float(levels[0][0]['px'])
         ask = float(levels[1][0]['px'])
+
+        # Validate prices are positive (prevents division by zero downstream)
+        if bid <= 0 or ask <= 0:
+            raise Exception(f"Invalid prices for {symbol}: bid={bid}, ask={ask}. Prices must be positive.")
 
         return ask, bid, levels
 
@@ -112,7 +154,13 @@ def ask_bid(symbol):
         raise
 
 def get_sz_px_decimals(symbol):
-    """Get size and price decimals for a symbol"""
+    """
+    Get size and price decimals for a symbol.
+
+    Raises:
+        ValueError: If symbol is not found on Hyperliquid
+        Exception: If API call fails
+    """
     url = 'https://api.hyperliquid.xyz/info'
     headers = {'Content-Type': 'application/json'}
     data = {'type': 'meta'}
@@ -123,25 +171,39 @@ def get_sz_px_decimals(symbol):
         data = response.json()
         symbols = data['universe']
         symbol_info = next((s for s in symbols if s['name'] == symbol), None)
+
+        # Also check uppercase version
+        if not symbol_info:
+            symbol_info = next((s for s in symbols if s['name'] == symbol.upper()), None)
+
         if symbol_info:
             sz_decimals = symbol_info['szDecimals']
         else:
-            print('Symbol not found')
-            return 0, 0
+            available_symbols = [s['name'] for s in symbols]
+            error_msg = f"Symbol '{symbol}' not found on Hyperliquid. Available symbols: {', '.join(sorted(available_symbols)[:20])}..."
+            print(f'❌ {error_msg}')
+            add_console_log(f"❌ {symbol} not available on Hyperliquid", "error")
+            raise ValueError(error_msg)
     else:
-        print('Error:', response.status_code)
-        return 0, 0
+        error_msg = f"API error {response.status_code} when fetching symbol info"
+        print(f'❌ {error_msg}')
+        raise Exception(error_msg)
 
-    ask = ask_bid(symbol)[0]
-    ask_str = str(ask)
+    try:
+        ask = ask_bid(symbol)[0]
+        ask_str = str(ask)
 
-    if '.' in ask_str:
-        px_decimals = len(ask_str.split('.')[1])
-    else:
-        px_decimals = 0
+        if '.' in ask_str:
+            px_decimals = len(ask_str.split('.')[1])
+        else:
+            px_decimals = 0
 
-    print(f'{symbol} price: {ask} | sz decimals: {sz_decimals} | px decimals: {px_decimals}')
-    return sz_decimals, px_decimals
+        print(f'{symbol} price: {ask} | sz decimals: {sz_decimals} | px decimals: {px_decimals}')
+        return sz_decimals, px_decimals
+    except Exception as e:
+        # If we can't get price, use default price decimals
+        print(f'⚠️ Could not get price for {symbol}, using default px_decimals=2: {e}')
+        return sz_decimals, 2
 
 def get_position(symbol_or_address, account=None):
     """
@@ -455,8 +517,21 @@ def get_account_value(address):
         return 0.0
 
 def market_buy(symbol, usd_size, account, slippage=None):
-    """Market buy using HyperLiquid"""
+    """Market buy using HyperLiquid
+
+    Raises:
+        ValueError: If symbol is not found on Hyperliquid
+        Exception: If order fails
+    """
     print(colored(f'📈 Market BUY {symbol} for ${usd_size}', 'green'))
+
+    # Validate symbol exists on Hyperliquid before attempting trade
+    is_valid, symbol_info = validate_symbol(symbol)
+    if not is_valid:
+        error_msg = f"Symbol '{symbol}' not available on Hyperliquid. Cannot execute trade."
+        print(colored(f'❌ {error_msg}', 'red'))
+        add_console_log(f"❌ {symbol} not on Hyperliquid - trade skipped", "error")
+        raise ValueError(error_msg)
 
     # Get current ask price
     ask, bid, _ = ask_bid(symbol)
@@ -508,8 +583,21 @@ def market_buy(symbol, usd_size, account, slippage=None):
     return order_result
 
 def market_sell(symbol, usd_size, account, slippage=None):
-    """Market sell using HyperLiquid"""
+    """Market sell using HyperLiquid
+
+    Raises:
+        ValueError: If symbol is not found on Hyperliquid
+        Exception: If order fails
+    """
     print(colored(f'💸 Market SELL {symbol} for ${usd_size}', 'red'))
+
+    # Validate symbol exists on Hyperliquid before attempting trade
+    is_valid, symbol_info = validate_symbol(symbol)
+    if not is_valid:
+        error_msg = f"Symbol '{symbol}' not available on Hyperliquid. Cannot execute trade."
+        print(colored(f'❌ {error_msg}', 'red'))
+        add_console_log(f"❌ {symbol} not on Hyperliquid - trade skipped", "error")
+        raise ValueError(error_msg)
 
     # Get current bid price
     ask, bid, _ = ask_bid(symbol)
@@ -1103,11 +1191,23 @@ def open_short(token, amount, slippage=None, leverage=DEFAULT_LEVERAGE, account=
         leverage: Leverage multiplier
         account: HyperLiquid account object (optional, will create from env if not provided)
 
+    Raises:
+        ValueError: If symbol is not found on Hyperliquid
+        Exception: If order fails
+
     Returns:
         dict: Order response
     """
     if account is None:
         account = _get_account_from_env()
+
+    # Validate symbol exists on Hyperliquid before attempting trade
+    is_valid, symbol_info = validate_symbol(token)
+    if not is_valid:
+        error_msg = f"Symbol '{token}' not available on Hyperliquid. Cannot execute trade."
+        print(colored(f'❌ {error_msg}', 'red'))
+        add_console_log(f"❌ {token} not on Hyperliquid - trade skipped", "error")
+        raise ValueError(error_msg)
 
     try:
         # Set leverage

@@ -1715,20 +1715,163 @@ def get_tokens():
     """
     Get available Hyperliquid tokens organized by category
     Returns categorized tokens (crypto, altcoins, memecoins)
+
+    If 'live=true' query param is provided, fetches from Hyperliquid API.
+    Otherwise returns static list from settings_manager.
     """
     try:
-        tokens = get_hyperliquid_tokens()
-        all_symbols = get_all_token_symbols()
+        use_live = request.args.get('live', 'false').lower() == 'true'
+
+        if use_live:
+            # Fetch live tokens from Hyperliquid
+            tokens, all_symbols = fetch_live_hyperliquid_tokens()
+        else:
+            tokens = get_hyperliquid_tokens()
+            all_symbols = get_all_token_symbols()
 
         return jsonify({
             'success': True,
             'categories': tokens,
             'all_symbols': all_symbols,
-            'total_count': len(all_symbols)
+            'total_count': len(all_symbols),
+            'source': 'live' if use_live else 'static'
         })
 
     except Exception as e:
         print(f"❌ Error getting tokens: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }), 500
+
+
+def fetch_live_hyperliquid_tokens():
+    """
+    Fetch live tokens from Hyperliquid API and categorize them.
+    Returns (categorized_tokens, all_symbols) tuple.
+    """
+    import requests
+
+    try:
+        url = 'https://api.hyperliquid.xyz/info'
+        headers = {'Content-Type': 'application/json'}
+
+        # Get universe metadata
+        response = requests.post(url, headers=headers, json={'type': 'meta'})
+
+        if response.status_code != 200:
+            print(f"❌ Hyperliquid API error: {response.status_code}")
+            # Fall back to static list
+            return get_hyperliquid_tokens(), get_all_token_symbols()
+
+        data = response.json()
+        universe = data.get('universe', [])
+
+        # Define known categories
+        major_crypto = {'BTC', 'ETH', 'SOL'}
+        memecoins = {'DOGE', 'SHIB', 'PEPE', 'BONK', 'FLOKI', 'MEME', 'WEN',
+                    'MYRO', 'MEW', 'POPCAT', 'GOAT', 'PNUT', 'NEIRO', 'TURBO',
+                    'BRETT', 'MOG', 'GIGA', 'FARTCOIN', 'WIF', 'TRUMP', 'MELANIA',
+                    'AI16Z', 'GRIFFAIN', 'ZEREBRO', 'FWOG', 'MOODENG', 'CHILLGUY',
+                    'PENGU', 'VIRTUAL', 'AIXBT', 'PIPPIN', 'ALCH', 'BERA',
+                    'SPX', 'MOTHER', 'BENJI'}
+
+        categorized = {
+            'crypto': [],
+            'altcoins': [],
+            'memecoins': []
+        }
+
+        all_symbols = []
+
+        for token in universe:
+            symbol = token.get('name', '')
+            if not symbol:
+                continue
+
+            all_symbols.append(symbol)
+
+            token_info = {
+                'symbol': symbol,
+                'name': symbol,  # Hyperliquid doesn't provide full names
+                'szDecimals': token.get('szDecimals', 2)
+            }
+
+            if symbol in major_crypto:
+                categorized['crypto'].append(token_info)
+            elif symbol in memecoins:
+                categorized['memecoins'].append(token_info)
+            else:
+                categorized['altcoins'].append(token_info)
+
+        # Sort each category
+        for cat in categorized:
+            categorized[cat].sort(key=lambda x: x['symbol'])
+
+        print(f"✅ Fetched {len(all_symbols)} tokens from Hyperliquid: "
+              f"{len(categorized['crypto'])} crypto, "
+              f"{len(categorized['altcoins'])} altcoins, "
+              f"{len(categorized['memecoins'])} memecoins")
+
+        return categorized, all_symbols
+
+    except Exception as e:
+        print(f"❌ Error fetching live tokens: {e}")
+        # Fall back to static list
+        return get_hyperliquid_tokens(), get_all_token_symbols()
+
+
+@app.route('/api/tokens/validate', methods=['POST'])
+@login_required
+def validate_tokens_endpoint():
+    """
+    Validate that given tokens exist on Hyperliquid.
+    Request body: {"tokens": ["BTC", "ETH", "GOAT", ...]}
+    Returns: {"valid": [...], "invalid": [...]}
+    """
+    try:
+        data = request.get_json()
+        tokens_to_check = data.get('tokens', [])
+
+        if not tokens_to_check:
+            return jsonify({
+                'success': False,
+                'message': 'No tokens provided'
+            }), 400
+
+        # Fetch live universe
+        import requests
+        url = 'https://api.hyperliquid.xyz/info'
+        response = requests.post(url, headers={'Content-Type': 'application/json'}, json={'type': 'meta'})
+
+        if response.status_code != 200:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to fetch Hyperliquid universe'
+            }), 500
+
+        meta = response.json()
+        available_symbols = {coin['name'] for coin in meta.get('universe', [])}
+
+        valid = []
+        invalid = []
+
+        for token in tokens_to_check:
+            # Check both original and uppercase
+            if token in available_symbols or token.upper() in available_symbols:
+                valid.append(token)
+            else:
+                invalid.append(token)
+
+        return jsonify({
+            'success': True,
+            'valid': valid,
+            'invalid': invalid,
+            'available_count': len(available_symbols)
+        })
+
+    except Exception as e:
+        print(f"❌ Error validating tokens: {e}")
         return jsonify({
             'success': False,
             'message': f'Error: {str(e)}'
