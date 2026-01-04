@@ -1016,10 +1016,10 @@ def run_trading_agent():
                 # Pass user-selected tokens to the agent
                 symbols=monitored_tokens,
                 # Pass AI settings
-                ai_provider=user_settings.get('ai_provider', 'gemini'),
-                ai_model=user_settings.get('ai_model', 'gemini-2.5-flash'),
-                ai_temperature=user_settings.get('ai_temperature', 0.3),
-                ai_max_tokens=user_settings.get('ai_max_tokens', 2000),
+                ai_provider=user_settings.get('ai_provider', 'openrouter'),
+                ai_model=user_settings.get('ai_model', 'x-ai/grok-4.1-fast'),
+                ai_temperature=user_settings.get('ai_temperature', 0.6),
+                ai_max_tokens=user_settings.get('ai_max_tokens', 8024),
                 # Pass swarm mode settings
                 swarm_mode=user_settings.get('swarm_mode', 'single'),
                 swarm_models=user_settings.get('swarm_models', [])
@@ -1055,8 +1055,8 @@ def run_trading_agent():
                 add_console_log(f"Signals: {buy_count} BUY, {sell_count} SELL, {nothing_count} HOLD", "trade")
 
             # Wait before next cycle
-            add_console_log("Finished trading cycle", "info")
-            add_console_log(f"Next cycle starts in {user_settings.get('sleep_minutes', 30)} minutes", "info")
+            add_console_log("Finished trading", "info")
+            add_console_log(f"Next cycle in {user_settings.get('sleep_minutes', 30)} minutes", "info")
 
             # Use Event.wait() instead of blocking sleep for responsive shutdown
             if stop_event.wait(timeout=sleep_seconds):
@@ -1234,7 +1234,7 @@ def stream_positions():
                     add_console_log("Real-time position streaming connected", "success")
                 else:
                     print("📡 WebSocket not available - falling back to periodic polling")
-                    add_console_log("WebSocket unavailable - position polling fallback active", "warning")
+                    add_console_log("WebSocket unavailable - API polling active", "info")
 
                 # Send initial positions immediately
                 try:
@@ -1634,7 +1634,7 @@ def stop_agent():
         state["last_stopped"] = datetime.now().isoformat()
         save_agent_state(state)
 
-    add_console_log("Trading agent stop requested via dashboard", "info")
+    add_console_log("Trading agent stop (manual)", "info")
 
     return jsonify({
         "status": "stopped",
@@ -1778,7 +1778,7 @@ def get_ai_models():
         else:
             # Get all providers and their models
             all_providers = ['openrouter', 'anthropic', 'openai', 'gemini', 'deepseek', 'xai',
-                           'mistral', 'cohere', 'perplexity', 'groq', 'ollama', 'ollamafreeapi']
+                           'mistral', 'cohere', 'perplexity', 'groq']
 
             all_models = {}
             for p in all_providers:
