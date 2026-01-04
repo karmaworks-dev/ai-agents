@@ -1,4 +1,4 @@
- f#!/usr/bin/env python3
+f#!/usr/bin/env python3
 """
 Trading Dashboard Backend
 =========================
