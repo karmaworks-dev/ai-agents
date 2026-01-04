@@ -600,6 +600,14 @@ class UserStateFeed:
         with self._lock:
             return self._positions.copy()
 
+    def get_positions_list(self) -> List[Dict]:
+        """Get all current positions as a list of dictionaries"""
+        with self._lock:
+            positions_list = []
+            for position in self._positions.values():
+                positions_list.append(position.to_dict())
+            return positions_list
+
     def get_position(self, coin: str) -> Optional[Position]:
         """Get position for a specific coin"""
         with self._lock:

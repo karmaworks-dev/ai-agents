@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Set up intervals (reduced frequency since positions use SSE)
     updateInterval = setInterval(updateDashboard, 30000); // Account data every 30s
-    setInterval(updateConsole, 10000);
+    setInterval(updateConsole, 5000);
     setInterval(updateTimestamp, 1000); // Update timestamp every second
 
     console.log('✅ Dashboard ready - real-time positions via WebSocket');
@@ -281,8 +281,13 @@ function updatePositions(positions) {
             </div>
             <div class="position-item">
                 <span class="position-label">P&L</span>
-                <span class="position-value pnl ${pos.pnl_percent >= 0 ? 'positive' : 'negative'}">
-                    ${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%
+                <span class="position-value">
+                    <span class="pnl ${pos.pnl_percent >= 0 ? 'positive' : 'negative'}">
+                        ${pos.pnl_percent >= 0 ? '+' : ''}${pos.pnl_percent.toFixed(2)}%
+                    </span>
+                    <span class="pnl-value">
+                        (${pos.pnl_value ? '$' + pos.pnl_value.toFixed(2) : '$0.00'})
+                    </span>
                 </span>
             </div>
             <div class="position-item position-actions">

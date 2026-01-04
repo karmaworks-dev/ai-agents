@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ f#!/usr/bin/env python3
 """
 Trading Dashboard Backend
 =========================
@@ -710,6 +710,7 @@ def get_positions_data():
                             "mark_price": float(mark_price),
                             "position_value": float(position_value),
                             "pnl_percent": float(pnl_perc),
+                            "pnl_value": float(pos.unrealized_pnl) if hasattr(pos, 'unrealized_pnl') else 0,
                             "side": side
                         })
 
@@ -1196,7 +1197,7 @@ def stream_positions():
                     # Signal that positions have been updated
                     global websocket_positions, websocket_positions_lock
                     with websocket_positions_lock:
-                        # Get all current positions
+                        # Get all current positions using the correct method
                         all_positions = user_feed.get_positions_list()
                         positions_json = json.dumps(all_positions)
                         # Store in global variable for immediate access
@@ -1225,14 +1226,37 @@ def stream_positions():
                         last_positions = positions_json
                         yield f"data: {positions_json}\n\n"
                 else:
-                    # No WebSocket update, get positions via API
-                    positions = get_positions_data()
-                    positions_json = json.dumps(positions)
-                    
-                    # Only send if changed
-                    if positions_json != last_positions:
-                        last_positions = positions_json
-                        yield f"data: {positions_json}\n\n"
+                    # No WebSocket update, get positions via WebSocket (not API)
+                    # Use the data manager to get positions via WebSocket
+                    try:
+                        from src.websocket import get_data_manager, is_websocket_connected
+                        if is_websocket_connected():
+                            dm = get_data_manager()
+                            positions = dm.get_all_positions()
+                            positions_json = json.dumps(positions)
+                            
+                            # Only send if changed
+                            if positions_json != last_positions:
+                                last_positions = positions_json
+                                yield f"data: {positions_json}\n\n"
+                        else:
+                            # Fallback to API if WebSocket not connected
+                            positions = get_positions_data()
+                            positions_json = json.dumps(positions)
+                            
+                            # Only send if changed
+                            if positions_json != last_positions:
+                                last_positions = positions_json
+                                yield f"data: {positions_json}\n\n"
+                    except Exception as api_error:
+                        # Final fallback to API
+                        positions = get_positions_data()
+                        positions_json = json.dumps(positions)
+                        
+                        # Only send if changed
+                        if positions_json != last_positions:
+                            last_positions = positions_json
+                            yield f"data: {positions_json}\n\n"
                         
             except GeneratorExit:
                 break
