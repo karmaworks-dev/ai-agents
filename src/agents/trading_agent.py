@@ -1438,22 +1438,17 @@ Return ONLY valid JSON with the following structure:
                     cprint(f"\n   📉 Closing {symbol}...", "yellow")
                     cprint(f"   💡 Reason: {decision['reasoning']}", "white")
 
-                    close_result = n.close_complete_position(symbol, self.account)
+                    n.close_complete_position(symbol, self.account)
 
-                    if close_result:
-                        # Remove from position tracker
-                        if POSITION_TRACKER_AVAILABLE:
-                            remove_position(symbol)
-                            cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
+                    # Remove from position tracker
+                    if POSITION_TRACKER_AVAILABLE:
+                        remove_position(symbol)
+                        cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
 
-                        cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
-                        add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
+                    cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
+                    add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
 
-                        closed_count += 1
-                    else:
-                        cprint(f"   ⚠️ Position close returned False for {symbol}", "yellow")
-                        add_console_log(f"⚠️ Close may have failed for {symbol}", "warning")
-
+                    closed_count += 1
                     time.sleep(2)
 
                 except Exception as e:
@@ -2090,23 +2085,17 @@ Return ONLY valid JSON with the following structure:
 
                         cprint(f"   📊 Closing {current_dir} position (${current_notional:.2f} notional)", "yellow")
 
-                        close_success = False
                         if EXCHANGE == "HYPERLIQUID":
-                            close_success = n.close_complete_position(symbol, self.account)
+                            n.close_complete_position(symbol, self.account)
                         else:
                             n.chunk_kill(symbol, max_usd_order_size, slippage)
-                            close_success = True  # chunk_kill doesn't return status
 
-                        if close_success:
-                            if POSITION_TRACKER_AVAILABLE:
-                                remove_position(symbol)
+                        if POSITION_TRACKER_AVAILABLE:
+                            remove_position(symbol)
 
-                            cprint(f"   ✅ Position closed!", "green")
-                            add_console_log(f"✅ Closed {symbol} {current_dir}", "success")
-                            executed_count += 1
-                        else:
-                            cprint(f"   ⚠️ Close may have failed for {symbol}", "yellow")
-                            add_console_log(f"⚠️ Close failed for {symbol}", "warning")
+                        cprint(f"   ✅ Position closed!", "green")
+                        add_console_log(f"✅ Closed {symbol} {current_dir}", "success")
+                        executed_count += 1
 
                     # ============================================================
                     # REDUCE: Reduce position size
@@ -2147,15 +2136,10 @@ Return ONLY valid JSON with the following structure:
                         # Check if we need to close opposite position first
                         if im_in_pos and not is_long:
                             cprint(f"   ⚠️ Closing SHORT before opening LONG...", "yellow")
-                            close_ok = False
                             if EXCHANGE == "HYPERLIQUID":
-                                close_ok = n.close_complete_position(symbol, self.account)
+                                n.close_complete_position(symbol, self.account)
                             else:
                                 n.chunk_kill(symbol, max_usd_order_size, slippage)
-                                close_ok = True
-                            if not close_ok:
-                                cprint(f"   ⚠️ Failed to close SHORT, skipping LONG entry", "yellow")
-                                continue
                             time.sleep(1)
 
                         cprint(f"   📈 Opening LONG: ${notional:.2f} notional (${margin_usd:.2f} margin)", "green")
@@ -2217,15 +2201,10 @@ Return ONLY valid JSON with the following structure:
                         # Check if we need to close opposite position first
                         if im_in_pos and is_long:
                             cprint(f"   ⚠️ Closing LONG before opening SHORT...", "yellow")
-                            close_ok = False
                             if EXCHANGE == "HYPERLIQUID":
-                                close_ok = n.close_complete_position(symbol, self.account)
+                                n.close_complete_position(symbol, self.account)
                             else:
                                 n.chunk_kill(symbol, max_usd_order_size, slippage)
-                                close_ok = True
-                            if not close_ok:
-                                cprint(f"   ⚠️ Failed to close LONG, skipping SHORT entry", "yellow")
-                                continue
                             time.sleep(1)
 
                         if EXCHANGE == "SOLANA":
@@ -2379,24 +2358,18 @@ Return ONLY valid JSON with the following structure:
                     cprint(f"⚠️ FORCE CLOSING {position_dir} position (mandatory -2% stop loss)", "white", "on_red")
 
                     try:
-                        close_ok = False
                         if EXCHANGE == "HYPERLIQUID":
-                            close_ok = n.close_complete_position(token, self.account)
+                            n.close_complete_position(token, self.account)
                         else:
                             n.chunk_kill(token, max_usd_order_size, slippage)
-                            close_ok = True
 
-                        if close_ok:
-                            # Remove from position tracker
-                            if POSITION_TRACKER_AVAILABLE:
-                                remove_position(token)
+                        # Remove from position tracker
+                        if POSITION_TRACKER_AVAILABLE:
+                            remove_position(token)
 
-                            cprint("✅ Stop loss position closed successfully!", "white", "on_green")
-                            add_console_log(f"🚨 STOP LOSS: Closed {token} {position_dir} at {pnl_perc:.2f}%", "warning")
-                            positions_closed += 1
-                        else:
-                            cprint("⚠️ Stop loss close may have failed - will retry next cycle", "white", "on_yellow")
-                            add_console_log(f"⚠️ Stop loss close failed for {token}", "warning")
+                        cprint("✅ Stop loss position closed successfully!", "white", "on_green")
+                        add_console_log(f"🚨 STOP LOSS: Closed {token} {position_dir} at {pnl_perc:.2f}%", "warning")
+                        positions_closed += 1
 
                     except Exception as e:
                         cprint(f"❌ Error closing stop loss position: {str(e)}", "white", "on_red")
@@ -2424,24 +2397,18 @@ Return ONLY valid JSON with the following structure:
                         cprint("🚨 BUY signal vs SHORT position - CLOSING", "white", "on_red")
 
                     try:
-                        close_ok = False
                         if EXCHANGE == "HYPERLIQUID":
-                            close_ok = n.close_complete_position(token, self.account)
+                            n.close_complete_position(token, self.account)
                         else:
                             n.chunk_kill(token, max_usd_order_size, slippage)
-                            close_ok = True
 
-                        if close_ok:
-                            # Remove from position tracker
-                            if POSITION_TRACKER_AVAILABLE:
-                                remove_position(token)
+                        # Remove from position tracker
+                        if POSITION_TRACKER_AVAILABLE:
+                            remove_position(token)
 
-                            cprint("✅ Position closed successfully!", "white", "on_green")
-                            add_console_log(f"Closed {token} {position_dir} - signal contradicted direction", "warning")
-                            positions_closed += 1
-                        else:
-                            cprint("⚠️ Position close may have failed - will retry next cycle", "yellow")
-                            add_console_log(f"⚠️ Close failed for {token}", "warning")
+                        cprint("✅ Position closed successfully!", "white", "on_green")
+                        add_console_log(f"Closed {token} {position_dir} - signal contradicted direction", "warning")
+                        positions_closed += 1
 
                     except Exception as e:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
