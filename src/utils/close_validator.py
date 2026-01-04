@@ -23,7 +23,7 @@ from enum import Enum
 STOP_LOSS_THRESHOLD = -2.0  # Force close at -2% or worse
 
 # Take Profit Threshold (Tier 0) - FORCE CLOSE like stop loss
-TAKE_PROFIT_THRESHOLD = 5.0  # Force close at +5% or better
+TAKE_PROFIT_THRESHOLD = 6.0  # Force close at +6% or better
 
 # Profit Target (Tier 1) - AI decides
 PROFIT_TARGET_THRESHOLD = 0.5  # AI can decide at +0.5% or better
@@ -107,7 +107,7 @@ def validate_close_decision(
         )
 
     # ========================================================================
-    # TIER 0: TAKE PROFIT (FORCE CLOSE at +5%)
+    # TIER 0: TAKE PROFIT (FORCE CLOSE at +6%)
     # ========================================================================
     if pnl_percent >= TAKE_PROFIT_THRESHOLD:
         return ValidationResult(
@@ -125,7 +125,7 @@ def validate_close_decision(
         )
 
     # ========================================================================
-    # TIER 1: PROFIT TARGET ACHIEVEMENT (AI decides between 0.5% and 5%)
+    # TIER 1: PROFIT TARGET ACHIEVEMENT (AI decides between 0.5% and 6%)
     # ========================================================================
     if pnl_percent >= PROFIT_TARGET_THRESHOLD:
         # AI is allowed to decide at profit target
