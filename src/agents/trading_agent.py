@@ -412,7 +412,8 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-- Available Balance: ${available_balance:.2f}
+- Total Equity (Balance + Positions): ${available_balance:.2f}
+- Available USDC for New Trades: ${available_balance - total_position_value:.2f}
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
@@ -590,18 +591,22 @@ class TradingAgent:
             swarm_mode (str): 'single' or 'swarm'. Defaults to 'single'.
             swarm_models (list): List of swarm model configs for multi-agent consensus.
         """
+        # Store configurable settings as instance variables
         self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
         self.days_back = days_back if days_back is not None else DAYSBACK_4_DATA
         self.stop_check_callback = stop_check_callback
 
+        # Store AI settings (use passed values or fall back to config defaults)
         self.ai_provider = ai_provider if ai_provider is not None else AI_MODEL_TYPE
         self.ai_model_name = ai_model if ai_model is not None else AI_MODEL_NAME
         self.ai_temperature = ai_temperature if ai_temperature is not None else AI_TEMPERATURE
         self.ai_max_tokens = ai_max_tokens if ai_max_tokens is not None else AI_MAX_TOKENS
 
+        # Store swarm mode settings (use passed values or fall back to defaults)
         self.use_swarm_mode = (swarm_mode == 'swarm') if swarm_mode is not None else DEFAULT_SWARM_MODE
         self.swarm_models_config = swarm_models or []
 
+        # Store symbols to analyze (use passed values or fall back to config)
         if symbols is not None:
             self.symbols = symbols
         elif EXCHANGE in ["ASTER", "HYPERLIQUID"]:
@@ -613,6 +618,7 @@ class TradingAgent:
         if EXCHANGE == "HYPERLIQUID":
             cprint("🔑 Initializing Hyperliquid Account...", "cyan")
             try:
+                # Standardized key lookup
                 raw_key = os.getenv("HYPER_LIQUID_ETH_PRIVATE_KEY", "") or os.getenv("HYPER_LIQUID_KEY", "")
                 clean_key = raw_key.strip().replace('"', '').replace("'", "")
 
@@ -630,7 +636,9 @@ class TradingAgent:
                 cprint(f"❌ Error loading key: {e}", "red")
                 sys.exit(1)
 
+        # Check if using swarm mode or single model
         if self.use_swarm_mode:
+            # Convert user's swarm_models format to SwarmAgent's format
             custom_models = self._build_swarm_models_config()
             num_models = len(custom_models) if custom_models else 6
 
@@ -640,6 +648,7 @@ class TradingAgent:
                 attrs=["bold"]
             )
 
+            # Initialize SwarmAgent with custom models from user settings
             if custom_models:
                 self.swarm = SwarmAgent(custom_models=custom_models)
                 cprint(f"✅ Swarm mode initialized with {num_models} user-configured AI models!", "green")
@@ -669,6 +678,7 @@ class TradingAgent:
             columns=["token", "action", "confidence", "reasoning"]
         )
 
+        # --- StrategyAgent (non-executing) ---
         try:
             self.strategy_agent = StrategyAgent(execute_signals=False)
             cprint("✅ StrategyAgent initialized (execute_signals=False)", "green")
@@ -676,9 +686,16 @@ class TradingAgent:
             self.strategy_agent = None
             cprint(f"⚠️ StrategyAgent failed to initialize: {e}", "yellow")
 
+        # Simple in-memory cache for enriched strategy contexts per token
+        # token -> {'data': ..., 'expires_at': datetime}
         self._strategy_context_cache = {}
-        self.STRATEGY_CONTEXT_TTL = 120
+        self.STRATEGY_CONTEXT_TTL = 120  # seconds (tune for your timeframe)
 
+
+
+
+
+        # Show which tokens will be analyzed
         cprint("\n🎯 Active Tokens for Trading:", "yellow", attrs=["bold"])
         cprint(f"🦈 Exchange: {EXCHANGE}", "cyan")
 
@@ -729,8 +746,10 @@ class TradingAgent:
             provider = model_config.get('provider', 'openrouter')
             model_name = model_config.get('model', 'nex-agi/deepseek-v3.1-nex-n1:free')
 
+            # Create unique key for each model (e.g., "gemini_1", "openai_2")
             model_key = f"{provider}_{i}"
 
+            # SwarmAgent expects: (enabled, provider_type, model_name)
             custom_models[model_key] = (True, provider, model_name)
 
             cprint(f"   📦 Swarm Model {i}: {provider}/{model_name}", "cyan")
@@ -756,6 +775,7 @@ class TradingAgent:
             model_name = getattr(self.model, 'model_name', 'Unknown')
             provider = getattr(self.model, 'provider', 'Unknown')
 
+            # Detect specific error types for helpful messages
             if "rate_limit" in error_str or "rate limit" in error_str:
                 msg = f"Rate limit: {provider}/{model_name}"
                 add_console_log(msg, "error")
@@ -833,8 +853,9 @@ FULL DATASET:
         5. Clear frontend logging: "Swarm -> BUY | 62% sure"
         """
         try:
-            votes = {"BUY": [], "SELL": [], "NOTHING": []}
-            model_votes = []
+            # Track votes with confidence scores
+            votes = {"BUY": [], "SELL": [], "NOTHING": []}  # Lists of confidence scores
+            model_votes = []  # For detailed logging
             model_index = 1
 
             cprint("\n📊 Individual Model Votes:", "cyan", attrs=["bold"])
@@ -849,13 +870,17 @@ FULL DATASET:
                 response_text = data["response"].strip() if data["response"] else ""
                 response_upper = response_text.upper()
 
+                # Parse vote AND confidence with new format
                 action, confidence = self._parse_vote_from_response(response_upper)
 
+                # Store confidence score for this action
                 votes[action].append(confidence)
 
+                # Format vote display
                 vote_display = f"Model {model_index} - {action} | {confidence}%"
                 model_votes.append(f"Model {model_index} ({provider}): {action} | {confidence}%")
 
+                # Color-coded console output
                 if action == "BUY":
                     cprint(f"   ✅ {vote_display}", "green")
                 elif action == "SELL":
@@ -865,12 +890,14 @@ FULL DATASET:
 
                 model_index += 1
 
+            # Count total valid votes
             total_votes = sum(len(v) for v in votes.values())
             if total_votes == 0:
                 cprint("❌ No valid responses from swarm - defaulting to NOTHING", "red")
                 add_console_log("Swarm -> NOTHING | 0% (no responses)", "warning")
                 return "NOTHING", 0, "No valid responses from swarm"
 
+            # Calculate vote counts and average confidence per action
             vote_counts = {action: len(confs) for action, confs in votes.items()}
             avg_confidences = {}
             for action, confs in votes.items():
@@ -879,13 +906,16 @@ FULL DATASET:
                 else:
                     avg_confidences[action] = 0
 
+            # Find majority action
             majority_action = max(vote_counts, key=vote_counts.get)
             majority_count = vote_counts[majority_action]
 
+            # Check for ties - look at top 2 vote counts
             sorted_counts = sorted(vote_counts.values(), reverse=True)
             has_tie = len(sorted_counts) >= 2 and sorted_counts[0] == sorted_counts[1] and sorted_counts[0] > 0
 
             if has_tie:
+                # Find which actions are tied
                 tied_actions = [a for a, c in vote_counts.items() if c == majority_count]
                 tie_avg_confidence = int(sum(avg_confidences[a] for a in tied_actions) / len(tied_actions))
 
@@ -895,6 +925,7 @@ FULL DATASET:
                     attrs=["bold"]
                 )
 
+                # Log to frontend with TIED status
                 add_console_log(f"Swarm -> TIED | {tie_avg_confidence}% sure", "warning")
 
                 reasoning = f"🌊 Swarm Consensus: TIED ({total_votes} models voted)\n\n"
@@ -910,9 +941,11 @@ FULL DATASET:
 
                 return "NOTHING", tie_avg_confidence, reasoning
 
+            # Calculate final confidence as weighted average of winning action's votes
             final_confidence = avg_confidences[majority_action]
             vote_percentage = int((majority_count / total_votes) * 100)
 
+            # Check minimum confidence threshold
             if final_confidence < MIN_SWARM_CONFIDENCE and majority_action != "NOTHING":
                 cprint(
                     f"\n⚠️ LOW CONFIDENCE: {final_confidence}% < {MIN_SWARM_CONFIDENCE}% threshold",
@@ -936,6 +969,7 @@ FULL DATASET:
 
                 return "NOTHING", final_confidence, reasoning
 
+            # Normal case: clear majority above threshold
             action_emoji = "📈" if majority_action == "BUY" else "📉" if majority_action == "SELL" else "⏸️"
 
             cprint(
@@ -944,6 +978,7 @@ FULL DATASET:
                 attrs=["bold"]
             )
 
+            # Log to frontend with clear format
             add_console_log(f"Swarm -> {majority_action} | {final_confidence}% sure", "trade")
 
             reasoning = f"🌊 Swarm Consensus: {majority_action} ({total_votes} models voted)\n\n"
@@ -976,35 +1011,44 @@ FULL DATASET:
             - action: "BUY", "SELL", or "NOTHING"
             - confidence: 0-100 (defaults to 50 if not found)
         """
+        # Clean the response (remove extra whitespace, newlines)
         response_clean = response_upper.strip().split('\n')[0].strip()
 
+        # Default confidence if not found
         confidence = 50
 
+        # Try to parse "ACTION | XX%" format
         if "|" in response_clean:
             parts = response_clean.split("|")
             action_part = parts[0].strip()
             confidence_part = parts[1].strip() if len(parts) > 1 else ""
 
+            # Extract confidence number
             confidence_match = re.search(r'(\d+)', confidence_part)
             if confidence_match:
                 confidence = min(100, max(0, int(confidence_match.group(1))))
 
+            # Parse action from the first part
             response_clean = action_part
 
+        # Parse action with priority matching
         action = "NOTHING"
 
+        # Priority 1: Exact match
         if response_clean in ["BUY"]:
             action = "BUY"
         elif response_clean in ["SELL"]:
             action = "SELL"
         elif response_clean in ["DO NOTHING", "NOTHING", "HOLD", "WAIT"]:
             action = "NOTHING"
+        # Priority 2: Starts with action word
         elif response_clean.startswith("BUY"):
             action = "BUY"
         elif response_clean.startswith("SELL"):
             action = "SELL"
         elif response_clean.startswith("DO NOTHING") or response_clean.startswith("NOTHING"):
             action = "NOTHING"
+        # Priority 3: Contains action word (fallback)
         elif "SELL" in response_clean:
             action = "SELL"
         elif "BUY" in response_clean:
@@ -1024,17 +1068,22 @@ FULL DATASET:
         cprint("=" * 60, "cyan")
 
         all_positions = {}
-        exchange_positions = {}
+        exchange_positions = {}  # For syncing with tracker
+        # CRITICAL: Use self.symbols (instance variable) NOT global SYMBOLS/MONITORED_TOKENS
+        # This ensures user-configured symbols from settings are respected
         check_tokens = self.symbols
         total_position_count = 0
 
         for symbol in check_tokens:
             try:
+                # get_position returns: positions (list), im_in_pos, pos_size, pos_sym, entry_px, pnl_perc, is_long
+                # The 'positions' list contains ALL subpositions for this symbol
                 positions_list, im_in_pos, _, _, _, _, _ = n.get_position(
                     symbol, self.account
                 )
 
                 if im_in_pos and positions_list:
+                    # CRITICAL FIX: Iterate through ALL positions, not just the first one
                     for pos in positions_list:
                         pos_size = float(pos.get("szi", 0))
                         entry_px = float(pos.get("entryPx", 0))
@@ -1044,6 +1093,7 @@ FULL DATASET:
                         if pos_size == 0:
                             continue
 
+                        # Get position age from tracker
                         age_hours = 0.0
                         if POSITION_TRACKER_AVAILABLE:
                             age_hours = get_position_age_hours(symbol)
@@ -1058,6 +1108,7 @@ FULL DATASET:
                             "age_hours": age_hours,
                         }
 
+                        # Store for tracker sync (use combined size for all positions of this symbol)
                         if symbol not in exchange_positions:
                             exchange_positions[symbol] = {
                                 "entry_price": entry_px,
@@ -1071,6 +1122,7 @@ FULL DATASET:
                         all_positions[symbol].append(position_data)
                         total_position_count += 1
 
+                        # Include age in display
                         age_str = f"{age_hours:.1f}h" if age_hours > 0 else "NEW"
                         cprint(
                             f"   {symbol:<10} | {position_data['side']:<10} | "
@@ -1083,14 +1135,16 @@ FULL DATASET:
                 cprint(f"   ❌ Error fetching {symbol}: {e}", "red")
                 continue
 
+        # Show total count (including subpositions)
         cprint(f"\n   📊 Total positions detected: {total_position_count}", "yellow", attrs=["bold"])
 
+        # Sync tracker with actual exchange positions
         if POSITION_TRACKER_AVAILABLE and exchange_positions:
             added, removed = sync_with_exchange_positions(exchange_positions)
             if added > 0:
-                cprint(f"   📝 Added {added} position(s) to tracker", "yellow")
+                cprint(f"   📍 Added {added} position(s) to tracker", "yellow")
             if removed > 0:
-                cprint(f"   📝 Removed {removed} stale position(s) from tracker", "yellow")
+                cprint(f"   📍 Removed {removed} stale position(s) from tracker", "yellow")
 
         if not all_positions:
             cprint("   ℹ️  No open positions found", "yellow")
@@ -1112,6 +1166,7 @@ FULL DATASET:
         cprint(f"\n🔍 VALIDATING CLOSE DECISION FOR {symbol}:", "yellow", attrs=["bold"])
         cprint(f"   📊 P&L: {pnl_percent:.2f}% | Age: {age_hours:.1f}h | AI Confidence: {ai_confidence}%", "cyan")
 
+        # Use the close validator if available
         if CLOSE_VALIDATOR_AVAILABLE:
             result = validate_close_decision(
                 symbol=symbol,
@@ -1121,6 +1176,7 @@ FULL DATASET:
                 ai_confidence=ai_confidence
             )
 
+            # Display validation result
             tier_names = {0: "STOP LOSS", 1: "PROFIT TARGET", 2: "YOUNG POSITION", 3: "MATURE POSITION"}
             tier_name = tier_names.get(result.tier_triggered, "UNKNOWN")
 
@@ -1147,13 +1203,15 @@ FULL DATASET:
                 cprint(f"   💡 {result.reason}", "cyan")
                 return False, result.reason
 
-            else:
+            else:  # KEEP
                 cprint(f"   ⏸️ TIER {result.tier_triggered} ({tier_name}): KEEP", "yellow", attrs=["bold"])
                 cprint(f"   📉 Confidence: {result.original_confidence}% → {result.adjusted_confidence}% (boost: +{result.confidence_boost}%)", "yellow")
                 cprint(f"   💡 {result.reason}", "yellow")
                 return False, result.reason
 
+        # Fallback to simple validation if close validator not available
         else:
+            # Simple fallback: Stop loss at -2%, take profit at +5%, otherwise AI decides
             if pnl_percent <= STOP_LOSS_THRESHOLD:
                 cprint(f"   🚨 STOP LOSS TRIGGERED: {pnl_percent:.2f}%", "red", attrs=["bold"])
                 add_console_log(f"STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
@@ -1181,11 +1239,13 @@ FULL DATASET:
         add_console_log("Analyzing Open Positions", "info")
         cprint("=" * 60, "yellow")
 
+        # CRITICAL: Check TP/SL thresholds FIRST - force close regardless of AI analysis
         validated_decisions = {}
         for symbol, positions in positions_data.items():
             for pos in positions:
                 pnl_percent = pos["pnl_percent"]
                 
+                # Force TP/SL regardless of AI analysis
                 if pnl_percent >= TAKE_PROFIT_THRESHOLD:
                     validated_decisions[symbol] = {
                         "action": "CLOSE", 
@@ -1205,10 +1265,11 @@ FULL DATASET:
                     add_console_log(f"STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
                     continue
 
+        # Build position summary for remaining positions
         position_summary = []
         for symbol, positions in positions_data.items():
             if symbol in validated_decisions:
-                continue
+                continue  # Skip positions already handled by TP/SL
                 
             for pos in positions:
                 position_summary.append({
@@ -1220,16 +1281,18 @@ FULL DATASET:
                     "age_hours": pos["age_hours"],
                 })
 
+        # Format market conditions
         market_summary = {}
         for symbol in positions_data.keys():
             if symbol in validated_decisions:
-                continue
+                continue  # Skip positions already handled
                 
             if symbol in market_data:
                 df = market_data[symbol]
                 if not df.empty:
                     latest = df.iloc[-1]
 
+                    # Robustly detect the correct close column
                     if "Close" in df.columns:
                         current_price = latest["Close"]
                     elif "close" in df.columns:
@@ -1252,6 +1315,7 @@ FULL DATASET:
                         "trend": "Bullish" if current_price > latest.get("MA20", 0) else "Bearish",
                     }
 
+        # Only analyze positions that weren't force-closed by TP/SL
         if position_summary:
             user_prompt = f"""Analyze these open positions:
 
@@ -1273,11 +1337,13 @@ Return ONLY valid JSON with the following structure:
             try:
                 response = self.chat_with_ai(POSITION_ANALYSIS_PROMPT, user_prompt)
 
+                # Strip Markdown fences if model wrapped response in code blocks
                 if "```json" in response:
                     response = response.split("```json")[1].split("```")[0]
                 elif "```" in response:
                     response = response.split("```")[1].split("```")[0]
 
+                # Try safe JSON extraction first
                 decisions = extract_json_from_text(response)
                 if not decisions:
                     cprint("⚠️ AI response not valid JSON. Attempting text fallback...", "yellow")
@@ -1291,7 +1357,7 @@ Return ONLY valid JSON with the following structure:
                                 decisions[sym] = {
                                     "action": "CLOSE",
                                     "reasoning": "Detected CLOSE or SELL keyword in fallback parsing.",
-                                    "confidence": 60
+                                    "confidence": 60  # Default confidence for fallback
                                 }
                             elif "keep" in text or "hold" in text or "open" in text:
                                 decisions[sym] = {
@@ -1319,6 +1385,9 @@ Return ONLY valid JSON with the following structure:
                     cprint(f"   Raw response: {response}", "yellow")
                     return validated_decisions
 
+                # ============================================================================
+                # APPLY 3-TIER VALIDATION SYSTEM
+                # ============================================================================
                 cprint("\n" + "=" * 60, "magenta")
                 cprint("🛡️ APPLYING 3-TIER VALIDATION SYSTEM", "white", "on_magenta", attrs=["bold"])
                 cprint("=" * 60, "magenta")
@@ -1329,10 +1398,12 @@ Return ONLY valid JSON with the following structure:
                     ai_confidence = int(decision.get("confidence", 0))
 
                     if action.upper() == "CLOSE":
+                        # Get position data for validation
                         pos_data = positions_data.get(symbol, [{}])[0]
                         pnl_percent = pos_data.get("pnl_percent", 0)
                         age_hours = pos_data.get("age_hours", 0)
 
+                        # Run validation
                         should_close, validation_reason = self.validate_close_decision(
                             symbol, pnl_percent, age_hours, ai_confidence
                         )
@@ -1353,6 +1424,7 @@ Return ONLY valid JSON with the following structure:
                             cprint(f"🛡️ {symbol}: CLOSE BLOCKED → FORCING KEEP", "cyan", attrs=["bold"])
                             add_console_log(f"🛡️ {symbol} CLOSE blocked: {validation_reason}", "warning")
                     else:
+                        # KEEP decision - no validation needed
                         validated_decisions[symbol] = decision
 
             except Exception as e:
@@ -1360,6 +1432,7 @@ Return ONLY valid JSON with the following structure:
                 import traceback
                 traceback.print_exc()
 
+        # Print final validated decisions
         cprint("\n" + "=" * 60, "magenta")
         cprint("🎯 FINAL VALIDATED DECISIONS:", "white", "on_magenta", attrs=["bold"])
         cprint("=" * 60, "magenta")
@@ -1370,8 +1443,10 @@ Return ONLY valid JSON with the following structure:
             confidence = decision.get("confidence", 0)
             color = "red" if action.upper() == "CLOSE" else "green"
             cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
+            # Short format for dashboard: "SYMBOL -> ACTION"
             add_console_log(f"{symbol} -> {action}", "info")
 
+            # Short format for dashboard
             if action.upper() == "CLOSE":
                 add_console_log(f"{symbol} -> CLOSE ({confidence}% Sure)", "warning")
             else:
@@ -1400,9 +1475,10 @@ Return ONLY valid JSON with the following structure:
                     close_result = n.close_complete_position(symbol, self.account)
 
                     if close_result:
+                        # Remove from position tracker
                         if POSITION_TRACKER_AVAILABLE:
                             remove_position(symbol)
-                            cprint(f"   📝 Removed {symbol} from position tracker", "cyan")
+                            cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
 
                         cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
                         add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
@@ -1431,6 +1507,10 @@ Return ONLY valid JSON with the following structure:
 
         cprint("=" * 60 + "\n", "red")
 
+    # ==================================================
+    # Strategy Context Helpers
+    # ==================================================
+
     def _get_cached_strategy_context(self, token):
         try:
             now = datetime.utcnow()
@@ -1455,6 +1535,7 @@ Return ONLY valid JSON with the following structure:
             cprint(f"⚠️ Strategy context error: {e}", "yellow")
             return None
 
+
     def _format_strategy_context_text(self, strategy_context):
         if not strategy_context:
             return "No strategy intelligence available.", {}
@@ -1477,7 +1558,9 @@ Return ONLY valid JSON with the following structure:
         lines.append(f"- Timestamp: {strategy_context.get('timestamp')}")
 
         return "\n".join(lines), strategy_context
+   
 
+   
     def analyze_market_data(self, token, market_data):
         """Analyze market data using AI model (single or swarm mode)"""
         try:
@@ -1485,6 +1568,7 @@ Return ONLY valid JSON with the following structure:
                 print(f"⚠️ Skipping analysis for excluded token: {token}")
                 return None
 
+            # Fetch current position context
             position_context = "CURRENT POSITION: None (You have no exposure)."
 
             try:
@@ -1509,6 +1593,9 @@ Return ONLY valid JSON with the following structure:
 
             cprint(f"   ℹ️  Context: {position_context}", "cyan")
 
+            # ============================================================
+            # SWARM MODE
+            # ============================================================
             if self.use_swarm_mode:
                 num_models = len(self.swarm.active_models) if self.swarm else 6
                 cprint(
@@ -1532,6 +1619,7 @@ Return ONLY valid JSON with the following structure:
                     swarm_result
                 )
 
+                # Store the recommendation only — no trade execution here
                 self.recommendations_df = pd.concat(
                     [
                         self.recommendations_df,
@@ -1552,10 +1640,18 @@ Return ONLY valid JSON with the following structure:
                 cprint(f"✅ Swarm analysis complete for {token[:8]}!", "green")
                 add_console_log(f"✅ Swarm  {token} -> {action} | {confidence}% Sure", "success")
 
+                # Return raw result for dashboard or debugging
                 return swarm_result
 
+            # ============================================================
+            # SINGLE MODEL MODE
+            # ============================================================
             else:
+                # -----------------------------
+                # Enriched strategy context
+                # -----------------------------
                 try:
+                    # robust token name detection
                     if isinstance(market_data, dict):
                         token_name = market_data.get("symbol") or market_data.get("token") or token
                     else:
@@ -1565,6 +1661,7 @@ Return ONLY valid JSON with the following structure:
                     strategy_context_text = "No strategy intelligence available."
                     strategy_context_json = {}
 
+                    # Attempt to get enriched context from StrategyAgent (cached)
                     try:
                         strat_obj = self._get_cached_strategy_context(token_name)
                     except Exception as e:
@@ -1576,6 +1673,7 @@ Return ONLY valid JSON with the following structure:
                         add_console_log("Strategies loaded", "success")
 
                     else:
+                        # fallback to legacy market_data['strategy_signals'] if present
                         if isinstance(market_data, dict) and "strategy_signals" in market_data:
                             try:
                                 strategy_context_text = (
@@ -1590,6 +1688,7 @@ Return ONLY valid JSON with the following structure:
                             strategy_context_text = "No strategy intelligence available."
                             strategy_context_json = {}
 
+                    # store last context for debug / dashboard
                     self.last_strategy_context = strategy_context_json
 
                 except Exception as e:
@@ -1665,6 +1764,8 @@ Return ONLY valid JSON with the following structure:
             )
             return None
 
+
+
     def allocate_portfolio(self):
         """
         AI-Driven Smart Portfolio Allocation
@@ -1687,6 +1788,9 @@ Return ONLY valid JSON with the following structure:
             cprint("🧠 AI-DRIVEN SMART ALLOCATION", "white", "on_blue", attrs=["bold"])
             cprint("=" * 60, "cyan")
 
+            # ================================================================
+            # STEP 1: Collect Current Portfolio State
+            # ================================================================
             open_positions = {}
             total_position_value = 0
 
@@ -1714,12 +1818,16 @@ Return ONLY valid JSON with the following structure:
                 except Exception:
                     continue
 
+            # ================================================================
+            # STEP 2: Collect AI Signals
+            # ================================================================
             signals = []
             for _, row in self.recommendations_df.iterrows():
                 token = row["token"]
                 if token not in self.symbols:
                     continue
 
+                # Skip SELL signals in LONG_ONLY mode (can't open shorts)
                 if LONG_ONLY and row["action"] == "SELL" and token not in open_positions:
                     continue
 
@@ -1734,20 +1842,27 @@ Return ONLY valid JSON with the following structure:
                 add_console_log("No actionable signals for allocation", "info")
                 return []
 
+            # ================================================================
+            # STEP 3: Get Account Balance and Calculate Total Equity
+            # ================================================================
             account_balance = get_account_balance(self.account)
             if account_balance <= 0:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return []
 
+            # CRITICAL FIX: Calculate total equity including existing positions
             total_equity = account_balance + total_position_value
             available_balance = account_balance - total_position_value
-            min_order_notional = 12.0
+            min_order_notional = 12.0  # HyperLiquid minimum
 
             cprint(f"💰 Account Balance (USDC): ${account_balance:.2f}", "cyan")
             cprint(f"💎 Total Equity (Balance + Positions): ${total_equity:.2f}", "cyan")
             cprint(f"📊 Positions Value: ${total_position_value:.2f}", "cyan")
             cprint(f"💵 Available Balance: ${available_balance:.2f}", "green")
 
+            # ================================================================
+            # STEP 4: Build Portfolio State Summary for AI
+            # ================================================================
             if open_positions:
                 portfolio_lines = ["OPEN POSITIONS:"]
                 for sym, pos in open_positions.items():
@@ -1762,6 +1877,7 @@ Return ONLY valid JSON with the following structure:
 
             portfolio_state = "\n".join(portfolio_lines)
 
+            # Build signals summary
             signal_lines = []
             for sig in signals:
                 emoji = "📈" if sig["action"] == "BUY" else "📉" if sig["action"] == "SELL" else "⏸️"
@@ -1777,13 +1893,17 @@ Return ONLY valid JSON with the following structure:
             cprint(signals_text, "white")
             cprint(f"\n⏱️  Cycle Time: {SLEEP_BETWEEN_RUNS_MINUTES} min (minimum hold time)", "yellow")
 
+            # ================================================================
+            # STEP 5: Ask AI for Allocation Plan
+            # ================================================================
             cprint("\n🧠 Consulting AI for optimal allocation...", "magenta", attrs=["bold"])
             add_console_log("Agent is analyzing allocation...", "info")
 
             prompt = SMART_ALLOCATION_PROMPT.format(
                 portfolio_state=portfolio_state,
                 signals=signals_text,
-                available_balance=total_equity,
+                available_balance=total_equity,  # CRITICAL: Use total equity instead of available balance
+                total_position_value=total_position_value,  # Add actual position value for validation
                 leverage=LEVERAGE,
                 max_position_pct=MAX_POSITION_PERCENTAGE,
                 cash_buffer_pct=CASH_PERCENTAGE,
@@ -1800,7 +1920,11 @@ Return ONLY valid JSON with the following structure:
                 cprint("❌ No response from AI. Using fallback allocation.", "red")
                 return self._fallback_equal_allocation(signals, total_equity, open_positions)
 
+            # ================================================================
+            # STEP 6: Parse AI Response
+            # ================================================================
             try:
+                # Extract JSON from response
                 allocation_plan = extract_json_from_text(ai_response)
 
                 if not allocation_plan or "actions" not in allocation_plan:
@@ -1809,6 +1933,7 @@ Return ONLY valid JSON with the following structure:
 
                 actions = allocation_plan["actions"]
 
+                # Validate and filter actions
                 valid_actions = []
                 for action in actions:
                     if not isinstance(action, dict):
@@ -1818,12 +1943,16 @@ Return ONLY valid JSON with the following structure:
                     if action["symbol"] not in self.symbols:
                         continue
 
+                    # Skip HOLD actions - nothing to execute
                     if action["action"] == "HOLD":
                         cprint(f"   ⏸️ {action['symbol']}: HOLD - {action.get('reason', 'No change needed')}", "cyan")
                         continue
 
                     valid_actions.append(action)
 
+                # ================================================================
+                # STEP 7: Display AI Allocation Plan
+                # ================================================================
                 cprint("\n" + "=" * 60, "green")
                 cprint("🎯 AI ALLOCATION PLAN:", "white", "on_green", attrs=["bold"])
                 cprint("=" * 60, "green")
@@ -1878,11 +2007,13 @@ Return ONLY valid JSON with the following structure:
         if not actionable_signals:
             return []
 
+        # Filter out signals where we already have aligned position
         new_signals = []
         for sig in actionable_signals:
             sym = sig["symbol"]
             if sym in open_positions:
                 pos = open_positions[sym]
+                # If signal aligns with position, skip (already positioned)
                 if (sig["action"] == "BUY" and pos["direction"] == "LONG") or \
                    (sig["action"] == "SELL" and pos["direction"] == "SHORT"):
                     continue
@@ -1892,9 +2023,11 @@ Return ONLY valid JSON with the following structure:
             cprint("   No new positions to open.", "cyan")
             return []
 
+        # Calculate margin per position
         usable_margin = available_balance * (MAX_POSITION_PERCENTAGE / 100)
         cash_buffer = available_balance * (CASH_PERCENTAGE / 100)
 
+        # Prevent division by zero
         if len(new_signals) == 0:
             cprint("   No signals after filtering.", "cyan")
             return []
@@ -1903,10 +2036,12 @@ Return ONLY valid JSON with the following structure:
         min_margin = 12 / LEVERAGE
 
         if margin_per_position < min_margin:
+            # Take only highest confidence signals
             new_signals.sort(key=lambda x: x["confidence"], reverse=True)
             max_positions = int((usable_margin - cash_buffer) / min_margin)
             new_signals = new_signals[:max(1, max_positions)]
 
+            # Prevent division by zero after filtering
             if len(new_signals) == 0:
                 cprint("   Insufficient margin for any positions.", "yellow")
                 return []
@@ -1950,6 +2085,8 @@ Return ONLY valid JSON with the following structure:
             cprint("=" * 60, "yellow")
             add_console_log(f"Executing {len(actions_list)} allocation actions", "info")
 
+            # Sort actions: CLOSE first, then REDUCE, then OPEN/INCREASE
+            # This ensures we free up capital before opening new positions
             action_priority = {"CLOSE": 0, "REDUCE": 1, "OPEN_LONG": 2, "OPEN_SHORT": 2, "INCREASE": 3}
             sorted_actions = sorted(actions_list, key=lambda x: action_priority.get(x.get("action", ""), 5))
 
@@ -1974,6 +2111,7 @@ Return ONLY valid JSON with the following structure:
                     cprint(f"   📝 {reason}", "white")
 
                 try:
+                    # Get current position state
                     if EXCHANGE == "HYPERLIQUID":
                         pos_data = n.get_position(symbol, self.account)
                     else:
@@ -1983,6 +2121,9 @@ Return ONLY valid JSON with the following structure:
                     current_notional = abs(float(pos_size) * float(entry_px)) if im_in_pos else 0
                     current_dir = "LONG" if is_long else "SHORT"
 
+                    # ============================================================
+                    # CLOSE: Close entire position
+                    # ============================================================
                     if action_type == "CLOSE":
                         if not im_in_pos or pos_size == 0:
                             cprint(f"   ℹ️ No position to close", "cyan")
@@ -1995,7 +2136,7 @@ Return ONLY valid JSON with the following structure:
                             close_success = n.close_complete_position(symbol, self.account)
                         else:
                             n.chunk_kill(symbol, max_usd_order_size, slippage)
-                            close_success = True
+                            close_success = True  # chunk_kill doesn't return status
 
                         if close_success:
                             if POSITION_TRACKER_AVAILABLE:
@@ -2008,6 +2149,9 @@ Return ONLY valid JSON with the following structure:
                             cprint(f"   ⚠️ Close may have failed for {symbol}", "yellow")
                             add_console_log(f"⚠️ Close failed for {symbol}", "warning")
 
+                    # ============================================================
+                    # REDUCE: Reduce position size
+                    # ============================================================
                     elif action_type == "REDUCE":
                         reduce_amount = action.get("reduce_by_usd", 0)
 
@@ -2030,6 +2174,9 @@ Return ONLY valid JSON with the following structure:
                         else:
                             cprint(f"   ⚠️ partial_close not available", "yellow")
 
+                    # ============================================================
+                    # OPEN_LONG / INCREASE (for LONG)
+                    # ============================================================
                     elif action_type in ["OPEN_LONG", "INCREASE"] and (action_type == "OPEN_LONG" or (im_in_pos and is_long)):
                         margin_usd = action.get("margin_usd", 0)
                         if margin_usd <= 0:
@@ -2038,9 +2185,12 @@ Return ONLY valid JSON with the following structure:
 
                         notional = margin_usd * LEVERAGE
 
+                        # CRITICAL FIX: Handle position conflicts more efficiently
                         if im_in_pos and not is_long:
+                            # Opposite position exists - allocate in opposite direction instead of closing first
                             cprint(f"   🔄 Opposite position detected - allocating in opposite direction", "cyan")
                             
+                            # For HyperLiquid, we can directly open opposite position which will net against existing
                             if EXCHANGE == "HYPERLIQUID":
                                 cprint(f"   📈 Opening LONG to net against existing SHORT", "cyan")
                                 result = n.ai_entry(symbol, notional, leverage=LEVERAGE, account=self.account)
@@ -2049,6 +2199,7 @@ Return ONLY valid JSON with the following structure:
                                     cprint(f"   ✅ LONG position opened (netting against SHORT)", "green")
                                     add_console_log(f"✅ Opened LONG {symbol} ${notional:.2f} (netting)", "success")
                                     
+                                    # Update tracker to reflect net position
                                     if POSITION_TRACKER_AVAILABLE:
                                         try:
                                             record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=True)
@@ -2061,13 +2212,14 @@ Return ONLY valid JSON with the following structure:
                                         cprint(f"   ⚠️ Position log error: {e}", "yellow")
 
                                     executed_count += 1
-                                    continue
+                                    continue  # Skip the rest of the logic for this action
                                 else:
                                     cprint(f"   ❌ Failed to open LONG position", "red")
                                     add_console_log(f"❌ Failed to open LONG {symbol} ${notional:.2f}", "error")
                                     failed_count += 1
                                     continue
                             else:
+                                # For other exchanges, fall back to closing first
                                 cprint(f"   ⚠️ Closing SHORT before opening LONG...", "yellow")
                                 close_ok = False
                                 if EXCHANGE == "HYPERLIQUID":
@@ -2082,6 +2234,7 @@ Return ONLY valid JSON with the following structure:
 
                         cprint(f"   📈 Opening LONG: ${notional:.2f} notional (${margin_usd:.2f} margin)", "green")
 
+                        # Execute trade and verify success
                         result = None
                         if EXCHANGE == "HYPERLIQUID":
                             result = n.ai_entry(symbol, notional, leverage=LEVERAGE, account=self.account)
@@ -2090,10 +2243,12 @@ Return ONLY valid JSON with the following structure:
                         else:
                             result = n.ai_entry(symbol, notional)
 
+                        # Verify trade executed successfully
                         if result:
                             cprint(f"   ✅ LONG position opened!", "green")
                             add_console_log(f"✅ Opened LONG {symbol} ${notional:.2f}", "success")
 
+                            # Record in tracker
                             if POSITION_TRACKER_AVAILABLE:
                                 try:
                                     record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=True)
@@ -2111,6 +2266,9 @@ Return ONLY valid JSON with the following structure:
                             add_console_log(f"❌ {symbol} LONG failed (no result)", "error")
                             failed_count += 1
 
+                    # ============================================================
+                    # OPEN_SHORT / INCREASE (for SHORT)
+                    # ============================================================
                     elif action_type in ["OPEN_SHORT"] or (action_type == "INCREASE" and im_in_pos and not is_long):
                         margin_usd = action.get("margin_usd", 0)
                         if margin_usd <= 0:
@@ -2119,9 +2277,12 @@ Return ONLY valid JSON with the following structure:
 
                         notional = margin_usd * LEVERAGE
 
+                        # CRITICAL FIX: Handle position conflicts more efficiently
                         if im_in_pos and is_long:
+                            # Opposite position exists - allocate in opposite direction instead of closing first
                             cprint(f"   🔄 Opposite position detected - allocating in opposite direction", "cyan")
                             
+                            # For HyperLiquid, we can directly open opposite position which will net against existing
                             if EXCHANGE == "HYPERLIQUID":
                                 cprint(f"   📉 Opening SHORT to net against existing LONG", "cyan")
                                 result = n.open_short(symbol, notional, leverage=LEVERAGE, account=self.account)
@@ -2130,6 +2291,7 @@ Return ONLY valid JSON with the following structure:
                                     cprint(f"   ✅ SHORT position opened (netting against LONG)", "green")
                                     add_console_log(f"✅ Opened SHORT {symbol} ${notional:.2f} (netting)", "success")
                                     
+                                    # Update tracker to reflect net position
                                     if POSITION_TRACKER_AVAILABLE:
                                         try:
                                             record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=False)
@@ -2142,13 +2304,14 @@ Return ONLY valid JSON with the following structure:
                                         cprint(f"   ⚠️ Position log error: {e}", "yellow")
 
                                     executed_count += 1
-                                    continue
+                                    continue  # Skip the rest of the logic for this action
                                 else:
                                     cprint(f"   ❌ Failed to open SHORT position", "red")
                                     add_console_log(f"❌ Failed to open SHORT {symbol} ${notional:.2f}", "error")
                                     failed_count += 1
                                     continue
                             else:
+                                # For other exchanges, fall back to closing first
                                 cprint(f"   ⚠️ Closing LONG before opening SHORT...", "yellow")
                                 close_ok = False
                                 if EXCHANGE == "HYPERLIQUID":
@@ -2167,6 +2330,7 @@ Return ONLY valid JSON with the following structure:
 
                         cprint(f"   📉 Opening SHORT: ${notional:.2f} notional (${margin_usd:.2f} margin)", "red")
 
+                        # Execute trade and verify success
                         result = None
                         if EXCHANGE == "HYPERLIQUID":
                             result = n.open_short(symbol, notional, leverage=LEVERAGE, account=self.account)
@@ -2178,10 +2342,12 @@ Return ONLY valid JSON with the following structure:
                                 failed_count += 1
                                 continue
 
+                        # Verify trade executed successfully
                         if result:
                             cprint(f"   ✅ SHORT position opened!", "green")
                             add_console_log(f"✅ Opened SHORT {symbol} ${notional:.2f}", "success")
 
+                            # Record in tracker
                             if POSITION_TRACKER_AVAILABLE:
                                 try:
                                     record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=False)
@@ -2209,8 +2375,9 @@ Return ONLY valid JSON with the following structure:
                     import traceback
                     traceback.print_exc()
 
-                time.sleep(2)
+                time.sleep(2)  # Rate limiting between trades
 
+            # Summary
             cprint(f"\n{'=' * 60}", "green")
             cprint(f"✅ EXECUTION COMPLETE: {executed_count} succeeded, {failed_count} failed", "green", attrs=["bold"])
             cprint(f"{'=' * 60}\n", "green")
@@ -2255,6 +2422,7 @@ Return ONLY valid JSON with the following structure:
 
             action = row["action"]
 
+            # Get position with direction info
             try:
                 if EXCHANGE == "HYPERLIQUID":
                     pos_data = n.get_position(token, self.account)
@@ -2263,6 +2431,7 @@ Return ONLY valid JSON with the following structure:
 
                 _, im_in_pos, pos_size, _, entry_px, pnl_perc, is_long = pos_data
 
+                # If position was manually closed, clean up tracker
                 if not im_in_pos and POSITION_TRACKER_AVAILABLE:
                     try:
                         remove_position(token)
@@ -2271,6 +2440,7 @@ Return ONLY valid JSON with the following structure:
 
             except Exception as e:
                 cprint(f"⚠️ Error getting position for {token}: {e}", "yellow")
+                # Try to clean up tracker on error
                 if POSITION_TRACKER_AVAILABLE:
                     try:
                         remove_position(token)
@@ -2283,10 +2453,12 @@ Return ONLY valid JSON with the following structure:
             cprint(f"📊 Signal: {action} ({row['confidence']}% confidence)", "yellow", attrs=["bold"])
 
             if im_in_pos and pos_size != 0:
+                # ============= CASE: HAVE POSITION =============
                 position_dir = "LONG" if is_long else "SHORT"
                 cprint(f"💼 Current Position: {position_dir} | Size: {abs(pos_size):.4f} | PnL: {pnl_perc:.2f}%", "white")
                 cprint(f"{'=' * 60}", "cyan")
 
+                # CRITICAL: Check for stop loss FIRST (overrides all other logic)
                 if pnl_perc <= STOP_LOSS_THRESHOLD:
                     cprint(f"🚨 STOP LOSS TRIGGERED: {pnl_perc:.2f}% <= {STOP_LOSS_THRESHOLD}%", "white", "on_red", attrs=["bold"])
                     cprint(f"⚠️ FORCE CLOSING {position_dir} position (mandatory -2% stop loss)", "white", "on_red")
@@ -2300,6 +2472,7 @@ Return ONLY valid JSON with the following structure:
                             close_ok = True
 
                         if close_ok:
+                            # Remove from position tracker
                             if POSITION_TRACKER_AVAILABLE:
                                 remove_position(token)
 
@@ -2314,22 +2487,25 @@ Return ONLY valid JSON with the following structure:
                         cprint(f"❌ Error closing stop loss position: {str(e)}", "white", "on_red")
                         add_console_log(f"❌ Failed to close stop loss position {token}: {e}", "error")
 
-                    continue
+                    continue  # Skip to next token after stop loss
 
+                # Determine if signal contradicts position direction
                 signal_contradicts_position = (
-                    (action == "SELL" and is_long) or
-                    (action == "BUY" and not is_long)
+                    (action == "SELL" and is_long) or      # SELL signal vs LONG position
+                    (action == "BUY" and not is_long)      # BUY signal vs SHORT position
                 )
 
                 if action == "NOTHING":
+                    # NOTHING = hold current position regardless of direction
                     cprint("⏸️ DO NOTHING signal - HOLDING POSITION", "white", "on_blue")
                     cprint(f"💎 Maintaining {position_dir} position", "cyan")
                     positions_held += 1
 
                 elif signal_contradicts_position:
+                    # Signal contradicts position → CLOSE (ONLY CLOSE, NO OPEN LOGIC HERE)
                     if action == "SELL" and is_long:
                         cprint("🚨 SELL signal vs LONG position - CLOSING", "white", "on_red")
-                    else:
+                    else:  # BUY signal vs SHORT position
                         cprint("🚨 BUY signal vs SHORT position - CLOSING", "white", "on_red")
 
                     try:
@@ -2341,6 +2517,7 @@ Return ONLY valid JSON with the following structure:
                             close_ok = True
 
                         if close_ok:
+                            # Remove from position tracker
                             if POSITION_TRACKER_AVAILABLE:
                                 remove_position(token)
 
@@ -2355,18 +2532,21 @@ Return ONLY valid JSON with the following structure:
                         cprint(f"❌ Error closing position: {str(e)}", "white", "on_red")
 
                 else:
+                    # Signal confirms position direction → KEEP
                     if action == "BUY" and is_long:
                         cprint("✅ BUY signal confirms LONG position - KEEPING", "white", "on_green")
-                    else:
+                    else:  # SELL signal confirms SHORT position
                         cprint("✅ SELL signal confirms SHORT position - KEEPING", "white", "on_green")
 
                     cprint(f"💎 Maintaining {position_dir} position", "cyan")
                     positions_held += 1
 
             else:
+                # ============= CASE: NO POSITION =============
                 cprint(f"💼 No position", "white")
                 cprint(f"{'=' * 60}", "cyan")
 
+                # Do NOT open new positions here - that happens in execute_allocations()
                 if action == "SELL":
                     if LONG_ONLY:
                         cprint("⭐ SELL signal - LONG ONLY mode, can't open SHORT", "white", "on_blue")
@@ -2376,9 +2556,10 @@ Return ONLY valid JSON with the following structure:
                 elif action == "NOTHING":
                     cprint("⏸️ DO NOTHING signal - staying flat", "white", "on_blue")
 
-                else:
+                else:  # BUY
                     cprint("📈 BUY signal - LONG will be opened in allocation phase", "white", "on_green")
 
+        # Summary
         cprint(f"\n{'=' * 60}", "green")
         cprint(f"✅ PHASE 1 COMPLETE: Closed {positions_closed}, Held {positions_held} positions", "green", attrs=["bold"])
         cprint(f"{'=' * 60}", "green")
@@ -2390,9 +2571,11 @@ Return ONLY valid JSON with the following structure:
         cprint("📊 FINAL PORTFOLIO REPORT", "white", "on_blue", attrs=["bold"])
         cprint("=" * 60, "cyan")
 
+        # CRITICAL: Use self.symbols (instance variable) NOT global SYMBOLS/MONITORED_TOKENS
         check_tokens = self.symbols
         active_positions = []
 
+        # Print header
         print(f"   {'TOKEN':<10} | {'SIDE':<10} | {'SIZE':<12} | {'ENTRY':<12} | {'PNL %':<10}")
         print("   " + "-" * 65)
 
@@ -2413,7 +2596,7 @@ Return ONLY valid JSON with the following structure:
                     active_positions.append(token)
 
             except Exception:
-                pass
+                pass  # Silently skip errors to keep report clean
 
         if not active_positions:
             cprint("   (No active positions)", "cyan")
@@ -2426,6 +2609,8 @@ Return ONLY valid JSON with the following structure:
             if self.stop_check_callback():
                 return True
         
+        # DO NOT check TP/SL here - that's handled within the trading cycle logic
+        # TP/SL should trigger position closes, not stop the entire trading cycle
         return False
 
     def _check_immediate_tp_sl_actions(self):
@@ -2439,10 +2624,12 @@ Return ONLY valid JSON with the following structure:
                 _, im_in_pos, _, _, _, pnl_perc, _ = pos_data
                 
                 if im_in_pos and pnl_perc != 0:
+                    # Check TP threshold
                     if pnl_perc >= TAKE_PROFIT_THRESHOLD:
                         cprint(f"🚨 TAKE PROFIT needed for {symbol}: {pnl_perc:.2f}%", "red")
                         return True
                     
+                    # Check SL threshold  
                     if pnl_perc <= STOP_LOSS_THRESHOLD:
                         cprint(f"🚨 STOP LOSS needed for {symbol}: {pnl_perc:.2f}%", "red")
                         return True
@@ -2465,15 +2652,18 @@ Return ONLY valid JSON with the following structure:
 
             add_console_log(f"TRADING CYCLE STARTED", "info")
 
+            # CRITICAL FIX: Reset recommendations_df at the start of each cycle
             self.recommendations_df = pd.DataFrame(
                 columns=["token", "action", "confidence", "reasoning"]
             )
             cprint("📋 Recommendations cleared for fresh cycle", "cyan")
 
+            # Check for stop signal
             if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
+            # STEP 0: DISPLAY VOLUME INTELLIGENCE SUMMARY (if available)
             if INTELLIGENCE_AVAILABLE:
                 volume_summary = get_volume_summary()
                 if volume_summary and "No volume" not in volume_summary:
@@ -2481,6 +2671,7 @@ Return ONLY valid JSON with the following structure:
                     cprint(volume_summary, "cyan")
                     add_console_log("📊 Volume intelligence loaded", "info")
 
+            # STEP 1: FETCH ALL OPEN POSITIONS
             add_console_log("Fetching open positions...", "info")
             open_positions = self.fetch_all_open_positions()
             add_console_log(f"Found {len(open_positions)} open position(s)", "info")
@@ -2489,6 +2680,7 @@ Return ONLY valid JSON with the following structure:
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
+            # STEP 2: COLLECT MARKET DATA
             tokens_to_trade = self.symbols
             add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
             cprint("📊 Collecting market data for analysis...", "white", "on_blue")
@@ -2505,6 +2697,7 @@ Return ONLY valid JSON with the following structure:
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
+            # STEP 3: AI ANALYZES OPEN POSITIONS
             close_decisions = {}
             if open_positions:
                 close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
@@ -2517,6 +2710,7 @@ Return ONLY valid JSON with the following structure:
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
+            # STEP 4: REFETCH POSITIONS & MARKET DATA AFTER CLOSURES
             time.sleep(2)
             open_positions = self.fetch_all_open_positions()
             cprint("📊 Refreshing market data after position updates...", "white", "on_blue")
@@ -2531,45 +2725,30 @@ Return ONLY valid JSON with the following structure:
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
+            # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
             cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
-            
-            tokens_to_analyze = self.symbols
-            if market_data:
-                for token in tokens_to_analyze:
-                    if self.should_stop():
-                        add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
-                        break
+            for token, data in market_data.items():
+                if self.should_stop():
+                    add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
+                    return
 
-                    cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
-                    add_console_log(f"📊 Analyzing {token}...", "info")
+                cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
+                add_console_log(f"📊 Analyzing {token}...", "info")
 
-                    token_data = market_data.get(token)
-                    if not token_data:
-                        cprint(f"   ⚠️ No market data available for {token} - skipping analysis", "yellow")
-                        add_console_log(f"⚠️ No market data for {token} - skipped", "warning")
-                        continue
+                if strategy_signals and token in strategy_signals:
+                    data["strategy_signals"] = strategy_signals[token]
 
-                    if strategy_signals and token in strategy_signals:
-                        token_data["strategy_signals"] = strategy_signals[token]
-
-                    try:
-                        analysis = self.analyze_market_data(token, token_data)
-                        if analysis:
-                            print(f"\n📈 Analysis for {token}:")
-                            print(analysis)
-                            print("\n" + "=" * 50 + "\n")
-                    except Exception as e:
-                        cprint(f"   ❌ Error analyzing {token}: {e}", "red")
-                        add_console_log(f"❌ Error analyzing {token}: {e}", "error")
-                        continue
-            else:
-                cprint("   ⚠️ No market data available - skipping token analysis", "yellow")
-                add_console_log("⚠️ No market data available - skipped token analysis", "warning")
+                analysis = self.analyze_market_data(token, data)
+                if analysis:
+                    print(f"\n📈 Analysis for {token}:")
+                    print(analysis)
+                    print("\n" + "=" * 50 + "\n")
 
             if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
+            # STEP 6: SHOW RECOMMENDATIONS
             cprint("\n📊 AI TRADING RECOMMENDATIONS:", "white", "on_blue")
             summary_df = self.recommendations_df[["token", "action", "confidence"]].copy()
             print(summary_df.to_string(index=False))
@@ -2578,13 +2757,18 @@ Return ONLY valid JSON with the following structure:
                 add_console_log("ℹ️ Stop signal received - skipping trade execution", "warning")
                 return
 
+            # ================================================================
+            # 🚀 UNIFIED EXECUTION - AI-DRIVEN ALLOCATION
+            # Works the same for both swarm and single mode
+            # ================================================================
             try:
                 mode_name = "SWARM" if self.use_swarm_mode else "SINGLE"
                 cprint(f"\n{'=' * 80}", "yellow")
-                cprint(f"🚀 {mode_name} MODE – AI-Driven Allocation Pipeline", "white", "on_yellow", attrs=["bold"])
+                cprint(f"🚀 {mode_name} MODE — AI-Driven Allocation Pipeline", "white", "on_yellow", attrs=["bold"])
                 cprint(f"{'=' * 80}", "yellow")
-                add_console_log(f"{mode_name} mode – starting allocations", "info")
+                add_console_log(f"{mode_name} mode — starting allocations", "info")
 
+                # Phase 1: Close contradictory positions (signals vs positions)
                 cprint("\n📌 PHASE 1: Exit Contradictory Positions", "yellow", attrs=["bold"])
                 self.handle_exits()
 
@@ -2592,9 +2776,11 @@ Return ONLY valid JSON with the following structure:
                     add_console_log("ℹ️ Stop signal received - skipping allocation", "warning")
                     return
 
+                # Wait for exchange to process closes
                 cprint("⏳ Waiting for exchange to process...", "cyan")
                 time.sleep(3)
 
+                # Phase 2: AI-Driven Smart Allocation
                 cprint("\n📌 PHASE 2: AI Smart Allocation", "cyan", attrs=["bold"])
                 allocation_actions = self.allocate_portfolio()
 
@@ -2602,6 +2788,7 @@ Return ONLY valid JSON with the following structure:
                     add_console_log("ℹ️ Stop signal received - skipping execution", "warning")
                     return
 
+                # Phase 3: Execute the AI allocation plan
                 if allocation_actions and isinstance(allocation_actions, list) and len(allocation_actions) > 0:
                     cprint(f"\n📌 PHASE 3: Execute {len(allocation_actions)} Actions", "green", attrs=["bold"])
                     self.execute_allocations(allocation_actions)
@@ -2617,6 +2804,7 @@ Return ONLY valid JSON with the following structure:
                 traceback.print_exc()
                 add_console_log(f"Execution error: {exec_err}", "error")
 
+            # STEP 8: FINAL PORTFOLIO REPORT
             self.show_final_portfolio_report()
 
             try:
@@ -2657,6 +2845,7 @@ Return ONLY valid JSON with the following structure:
             cprint(f"\n❌ Error in trading cycle: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
+
 
 def main():
     """Main function - simple cycle every X minutes"""
