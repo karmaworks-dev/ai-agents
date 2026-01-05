@@ -999,25 +999,6 @@ textarea.setting-input {
     min-height: 80px;
 }
 
-/* Portfolio Chart */
-.portfolio-chart {
-    height: 200px;
-    margin-bottom: 16px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-    font-size: 14px;
-}
-
-.portfolio-chart canvas {
-    max-width: 100%;
-    max-height: 100%;
-}
 
 /* Responsive */
 @media (max-width: 1200px) {
@@ -2321,4 +2302,172 @@ animation-duration: 1.8s;
 }
 .agent-badge.standby ~ .logo .pulse-line {
 animation-duration: 3.8s;
+}
+
+/* Pulse Graph Styles */
+.portfolio-chart {
+    height: 140px;
+    margin-bottom: 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    position: relative;
+}
+
+.portfolio-chart svg {
+    width: 100%;
+    height: 100%;
+}
+
+.portfolio-chart .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Enhanced position styling for layered chart */
+.symbol-long {
+    background: linear-gradient(135deg, rgba(0, 255, 136, 0.2), transparent);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-weight: 600;
+}
+
+.symbol-short {
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.2), transparent);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-weight: 600;
+}
+
+/* Position chart labels */
+.portfolio-chart text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    fill: var(--text-muted);
+}
+
+/* Enhanced position actions row */
+.position-actions-row {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-position-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--font-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    border: 1px solid transparent;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.btn-position-action:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+}
+
+.btn-close-position {
+    background: rgba(255, 71, 87, 0.1);
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
+.btn-close-position:hover {
+    background: var(--accent-red);
+    color: white;
+}
+
+.btn-chart {
+    background: rgba(33, 150, 243, 0.1);
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+.btn-chart:hover {
+    background: var(--accent-blue);
+    color: white;
+}
+
+/* Enhanced position layout */
+.position {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    transition: all 0.2s ease;
+}
+
+.position:hover {
+    background: #252525;
+    border-color: var(--accent-blue);
+}
+
+.position-row {
+    display: grid;
+    grid-template-columns: 100px 100px 120px 120px 120px 150px;
+    gap: 16px;
+    align-items: center;
+}
+
+.position-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    font-weight: 600;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.position-value {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Mobile responsive adjustments for positions */
+@media (max-width: 768px) {
+    .position-row {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+    
+    .position-actions-row {
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .btn-position-action {
+        justify-content: center;
+        width: 100%;
+    }
+    
+    .portfolio-chart {
+        height: 160px;
+    }
 }
