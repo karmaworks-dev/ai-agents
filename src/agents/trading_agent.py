@@ -2455,7 +2455,7 @@ Return ONLY valid JSON with the following structure:
         """Run the trading agent (implements BaseAgent interface)"""
         self.run_trading_cycle()
 
-    def run_trading_cycle(self, strategy_signals=None):
+def run_trading_cycle(self, strategy_signals=None):
         """Enhanced trading cycle with position management and intelligence integration"""
         try:
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -2469,6 +2469,49 @@ Return ONLY valid JSON with the following structure:
                 columns=["token", "action", "confidence", "reasoning"]
             )
             cprint("📋 Recommendations cleared for fresh cycle", "cyan")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            if INTELLIGENCE_AVAILABLE:
+                volume_summary = get_volume_summary()
+                if volume_summary and "No volume" not in volume_summary:
+                    cprint("\n📊 VOLUME INTELLIGENCE:", "white", "on_blue")
+                    cprint(volume_summary, "cyan")
+                    add_console_log("📊 Volume intelligence loaded", "info")
+
+            add_console_log("Fetching open positions...", "info")
+            open_positions = self.fetch_all_open_positions()
+            add_console_log(f"Found {len(open_positions)} open position(s)", "info")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            tokens_to_trade = self.symbols
+            add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
+            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
+
+            market_data = collect_all_tokens(
+                tokens=tokens_to_trade,
+                days_back=self.days_back,
+                timeframe=self.timeframe,
+                exchange=EXCHANGE,
+            )
+            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
+
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
+
+            close_decisions = {}
+            if open_positions:
+                close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
+                if self.should_stop():
+                    add_console_log("ℹ️ Stop signal received - skipping position closes", "warning")
+                    return
+                self.execute_position_closes(close_decisions)
 
             if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
@@ -2614,50 +2657,6 @@ Return ONLY valid JSON with the following structure:
             cprint(f"\n❌ Error in trading cycle: {e}", "white", "on_red")
             import traceback
             traceback.print_exc()
-                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-                return
-
-            if INTELLIGENCE_AVAILABLE:
-                volume_summary = get_volume_summary()
-                if volume_summary and "No volume" not in volume_summary:
-                    cprint("\n📊 VOLUME INTELLIGENCE:", "white", "on_blue")
-                    cprint(volume_summary, "cyan")
-                    add_console_log("📊 Volume intelligence loaded", "info")
-
-            add_console_log("Fetching open positions...", "info")
-            open_positions = self.fetch_all_open_positions()
-            add_console_log(f"Found {len(open_positions)} open position(s)", "info")
-
-            if self.should_stop():
-                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-                return
-
-            tokens_to_trade = self.symbols
-            add_console_log(f"📊 Collecting market data for {len(tokens_to_trade)} tokens...", "info")
-            cprint("📊 Collecting market data for analysis...", "white", "on_blue")
-
-            market_data = collect_all_tokens(
-                tokens=tokens_to_trade,
-                days_back=self.days_back,
-                timeframe=self.timeframe,
-                exchange=EXCHANGE,
-            )
-            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
-
-            if self.should_stop():
-                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-                return
-
-            close_decisions = {}
-            if open_positions:
-                close_decisions = self.analyze_open_positions_with_ai(open_positions, market_data)
-                if self.should_stop():
-                    add_console_log("ℹ️ Stop signal received - skipping position closes", "warning")
-                    return
-                self.execute_position_closes(close_decisions)
-
-            if self.should_stop():
-
 
 def main():
     """Main function - simple cycle every X minutes"""
