@@ -449,9 +449,8 @@ margin-left: -4px;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 300px;
+    max-height: 400px;
     overflow-y: auto;
-    overflow-x: hidden;
 }
 
 .position,
@@ -483,7 +482,7 @@ margin-left: -4px;
 .trade-label {
     font-size: 9px;
     text-transform: uppercase;
-    display: none;
+    display: none,
     letter-spacing: 0.5px;
     color: var(--text-muted);
     font-weight: 600;
