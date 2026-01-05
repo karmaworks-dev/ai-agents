@@ -2725,6 +2725,7 @@ Return ONLY valid JSON with the following structure:
 
         # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
         cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
+        except
 
         # Ensure we analyze all symbols, even if market_data is empty
         tokens_to_analyze = self.symbols
