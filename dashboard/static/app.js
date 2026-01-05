@@ -156,6 +156,26 @@ function renderAccountSummary(state) {
     if (state.status) {
         updateStatus(state.status, false); // Don't change agent badge state
     }
+
+    // Update Pulse Graph overlay with current account state
+    updatePulseOverlay(state);
+}
+
+// Update Pulse Graph overlay with Account Equity and P&L% (UI-only overlay)
+function updatePulseOverlay(acct) {
+    const eqEl = document.getElementById('pulse-equity');
+    const pnlEl = document.getElementById('pulse-equity-pnl');
+    if (!eqEl || !pnlEl || !acct) return;
+
+    if (typeof acct.equity === 'number') {
+        eqEl.textContent = `$${acct.equity.toFixed(2)}`;
+    }
+    if (typeof acct.pnlPct === 'number') {
+        const pct = acct.pnlPct;
+        pnlEl.textContent = `P&L ${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+        pnlEl.classList.toggle('positive', pct >= 0);
+        pnlEl.classList.toggle('negative', pct < 0);
+    }
 }
 
 // Update status with proper handling

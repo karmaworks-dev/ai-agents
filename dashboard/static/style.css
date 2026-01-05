@@ -1102,11 +1102,71 @@ textarea.setting-input {
     justify-content: center;
     color: var(--text-muted);
     font-size: 14px;
+    position: relative;
 }
 
 .portfolio-chart canvas {
     max-width: 100%;
     max-height: 100%;
+}
+
+/* Pulse Equity Overlay */
+.pulse-equity-overlay {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    z-index: 6;
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    pointer-events: none; /* do not block chart interaction */
+    transform-origin: left top;
+}
+
+/* Responsive, subtle, readable */
+.pulse-equity {
+    font-weight: 600;
+    font-size: 14px; /* requested */
+    color: var(--text-primary);
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+}
+
+/* small badge */
+.pulse-equity-pnl {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.03);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+/* color states */
+.pulse-equity-pnl.positive {
+    color: var(--accent-green);
+}
+
+.pulse-equity-pnl.negative {
+    color: var(--accent-red);
+}
+
+/* Mobile/desktop scaling */
+@media (max-width: 480px) {
+    .pulse-equity {
+        font-size: 13px;
+    }
+    .pulse-equity-pnl {
+        font-size: 10px;
+        padding: 1px 5px;
+    }
+}
+
+@media (min-width: 1400px) {
+    .pulse-equity {
+        font-size: 15px;
+    }
 }
 
 /* Responsive */
@@ -2415,63 +2475,63 @@ textarea.setting-input {
 
 /* Mobile adjustments for plan cards */
 @media (max-width: 900px) {
-.plan-cards {
-grid-template-columns: 1fr;
-}
-.plan-card.recommended::before {
-top: -8px;
-}
+    .plan-cards {
+        grid-template-columns: 1fr;
+    }
+    .plan-card.recommended::before {
+        top: -8px;
+    }
 }
 
 /* Pulse animation (uses current color) */
 .pulse-line {
-fill: none;
-stroke: currentColor;
-stroke-width: 5;
-stroke-linecap: round;
-stroke-linejoin: round;
-stroke-dasharray: 220;
-stroke-dashoffset: 220;
-animation: drawLine 3s ease-out infinite;
-filter: drop-shadow(0 0 6px currentColor);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 220;
+    stroke-dashoffset: 220;
+    animation: drawLine 3s ease-out infinite;
+    filter: drop-shadow(0 0 6px currentColor);
 }
 
 @keyframes drawLine {
-0% {
-stroke-dashoffset: 220;
-opacity: 0;
-}
-8% {
-opacity: 1;
-}
-100% {
-stroke-dashoffset: 0;
-opacity: 1;
-}
+    0% {
+        stroke-dashoffset: 220;
+        opacity: 0;
+    }
+    8% {
+        opacity: 1;
+    }
+    100% {
+        stroke-dashoffset: 0;
+        opacity: 1;
+    }
 }
 
 /* Sync logo color + speed to status badge */
 .agent-badge.ready ~ .logo {
-color: #6EEB83;
+    color: #6EEB83;
 }
 
 .agent-badge.standby ~ .logo {
-color: #FACC15;
+    color: #FACC15;
 }
 
 .agent-badge.running ~ .logo {
-color: #60A5FA;
+    color: #60A5FA;
 }
 
 .agent-badge.offline ~ .logo {
-color: #F87171;
-opacity: 0.7;
+    color: #F87171;
+    opacity: 0.7;
 }
 
 /* Speed changes */
 .agent-badge.running ~ .logo .pulse-line {
-animation-duration: 1.8s;
+    animation-duration: 1.8s;
 }
 .agent-badge.standby ~ .logo .pulse-line {
-animation-duration: 3.8s;
+    animation-duration: 3.8s;
 }

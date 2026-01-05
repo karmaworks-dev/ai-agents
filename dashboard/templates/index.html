@@ -64,16 +64,21 @@
         <div class="main-content three-col">
             <!-- Column 1: Left (30%) - Pulse Graph & Recent Trades -->
             <div class="col left-col">
-                <!-- Portfolio Evolution -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Pulse Graph</h2>
-                        <span class="badge" id="portfolio-change">0%</span>
+                    <!-- Portfolio Evolution -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Pulse Graph</h2>
+                            <span class="badge" id="portfolio-change">0%</span>
+                        </div>
+                        <div class="portfolio-chart" id="portfolio-chart">
+                            <!-- Overlay for Account Equity and P&L -->
+                            <div class="pulse-equity-overlay" aria-hidden="true">
+                                <span id="pulse-equity" class="pulse-equity">$0.00</span>
+                                <span id="pulse-equity-pnl" class="pulse-equity-pnl positive">P&L +0.00%</span>
+                            </div>
+                            <!-- Chart will be rendered here -->
+                        </div>
                     </div>
-                    <div class="portfolio-chart" id="portfolio-chart">
-                        <!-- Chart will be rendered here -->
-                    </div>
-                </div>
                 
                 <!-- Recent Trades -->
                 <div class="card">
