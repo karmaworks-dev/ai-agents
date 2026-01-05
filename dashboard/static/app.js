@@ -123,7 +123,10 @@ async function updateDashboard() {
         console.log('[Dashboard] Full update at', new Date().toLocaleTimeString());
         
         // Update all metrics
-        updateUserStatusFromWebSocket(data);
+        updateBalance(data.account_balance, data.total_equity);
+        updatePnL(data.pnl);
+        updateStatus(data.status, data.agent_running);
+        updateExchange(data.exchange);
         updateTimestamp();
         updatePositions(data.positions);
         updateAgentBadge(data.agent_running, agentStatus.executing); // Pass execution state
@@ -173,14 +176,6 @@ function updateStatus(status, isRunning) {
 function updateExchange(exchange) {
     const exchangeEl = document.getElementById('exchange');
     exchangeEl.textContent = exchange || 'HyperLiquid';
-}
-
-// Update user status from WebSocket data
-function updateUserStatusFromWebSocket(data) {
-    updateBalance(data.account_balance, data.total_equity);
-    updatePnL(data.pnl);
-    updateStatus(data.status, data.agent_running);
-    updateExchange(data.exchange);
 }
 
 // Update timezone preference
@@ -1163,117 +1158,82 @@ async function logout() {
 }
 
 // ============================================================================
-// PULSE GRAPH - LAYERED POSITION CHART
+// PORTFOLIO CHART
 // ============================================================================
 
 async function updatePortfolioChart() {
     try {
-        // Get current positions from the positions container
-        const positionsContainer = document.getElementById('positions');
-        const positionElements = positionsContainer.querySelectorAll('.position');
-        
-        if (positionElements.length === 0) {
-            document.getElementById('portfolio-chart').innerHTML = '<div class="empty-state">No open positions</div>';
+        const response = await fetch('/api/history');
+        const history = await response.json();
+
+        if (!history || history.length === 0) {
+            document.getElementById('portfolio-chart').innerHTML = 'No portfolio data yet';
             return;
         }
 
-        // Calculate portfolio change from positions
-        let totalValue = 0;
-        let totalPnL = 0;
-
-        positionElements.forEach(posEl => {
-            const valueEl = posEl.querySelector('.position-value:nth-child(3)');
-            const pnlEl = posEl.querySelector('.position-value.pnl');
-            
-            if (valueEl && pnlEl) {
-                const value = parseFloat(valueEl.textContent.replace('$', '').replace(',', ''));
-                const pnlText = pnlEl.textContent.split('(')[0].trim();
-                const pnl = parseFloat(pnlText.replace('$', '').replace('+', '').replace(',', ''));
-                
-                if (!isNaN(value)) totalValue += value;
-                if (!isNaN(pnl)) totalPnL += pnl;
-            }
-        });
-
-        const change = totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0;
+        // Calculate portfolio change
+        const startBalance = history[0].balance;
+        const currentBalance = history[history.length - 1].balance;
+        const change = ((currentBalance - startBalance) / startBalance) * 100;
 
         const badge = document.getElementById('portfolio-change');
         badge.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
         badge.className = `badge ${change >= 0 ? 'positive' : 'negative'}`;
 
-        // Render layered position chart
-        renderLayeredPositionChart(positionElements, totalValue, change);
+        // Render simple ASCII chart
+        renderPortfolioChart(history);
 
     } catch (error) {
-        console.error('Error updating pulse graph:', error);
+        console.error('Error updating portfolio chart:', error);
     }
 }
 
-function renderLayeredPositionChart(positionElements, totalValue, totalPnLPercent) {
+function renderPortfolioChart(history) {
     const container = document.getElementById('portfolio-chart');
-    const width = 600;
-    const height = 120;
-    const padding = 10;
-    const bezelWidth = 0.05; // 5% bezel on each side
-    const chartWidth = 0.80; // 80% main chart area
-    
-    // Calculate actual pixel widths
-    const leftBezel = width * bezelWidth;
-    const rightBezel = width * bezelWidth;
-    const chartAreaWidth = width * chartWidth;
 
-    // Get positions data
-    const positions = [];
-    positionElements.forEach((posEl, index) => {
-        const symbolEl = posEl.querySelector('.symbol-long, .symbol-short');
-        const sizeEl = posEl.querySelector('.position-value:nth-child(2)');
-        const entryEl = posEl.querySelector('.position-value:nth-child(4)');
-        const markEl = posEl.querySelector('.position-value:nth-child(5)');
-        const pnlEl = posEl.querySelector('.position-value.pnl');
-        
-        if (symbolEl && sizeEl && entryEl && markEl && pnlEl) {
-            const symbol = symbolEl.textContent;
-            const size = parseFloat(sizeEl.textContent);
-            const entryPrice = parseFloat(entryEl.textContent.replace('$', ''));
-            const markPrice = parseFloat(markEl.textContent.replace('$', ''));
-            const pnlText = pnlEl.textContent.split('(')[0].trim();
-            const pnl = parseFloat(pnlText.replace('$', '').replace('+', '').replace(',', ''));
-            
-            if (!isNaN(size) && !isNaN(entryPrice) && !isNaN(markPrice)) {
-                positions.push({
-                    symbol,
-                    size,
-                    entryPrice,
-                    markPrice,
-                    pnl,
-                    isLong: symbolEl.classList.contains('symbol-long'),
-                    index
-                });
-            }
-        }
-    });
+    // Extract balance values
+    const values = history.map(h => h.balance);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const range = max - min;
 
-    if (positions.length === 0) {
-        container.innerHTML = '<div class="empty-state">No position data available</div>';
+    if (range === 0) {
+        container.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">Balance: $${values[0].toFixed(2)} (No change)</div>`;
         return;
     }
 
-    // Calculate price range for all positions
-    let minPrice = Infinity;
-    let maxPrice = -Infinity;
-    
-    positions.forEach(pos => {
-        minPrice = Math.min(minPrice, pos.entryPrice, pos.markPrice);
-        maxPrice = Math.max(maxPrice, pos.entryPrice, pos.markPrice);
+    // SVG dimensions
+    const width = 600;
+    const height = 120;
+    const padding = 10;
+
+    // Calculate points for the line
+    const points = values.map((val, i) => {
+        const x = (i / (values.length - 1)) * (width - padding * 2) + padding;
+        const y = height - padding - ((val - min) / range) * (height - padding * 2);
+        return { x, y };
     });
 
-    const priceRange = maxPrice - minPrice;
+    // Create smooth path using quadratic bezier curves
+    let pathD = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+        const prev = points[i - 1];
+        const curr = points[i];
+        const cpx = (prev.x + curr.x) / 2;
+        const cpy = (prev.y + curr.y) / 2;
+        pathD += ` Q ${prev.x} ${prev.y} ${cpx} ${cpy}`;
+    }
+    pathD += ` L ${points[points.length - 1].x} ${points[points.length - 1].y}`;
 
-    // Generate SVG with Equity/PnL header
-    let svgContent = `
-        <div style="margin-bottom: 8px; font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
-            Equity: $${totalValue.toFixed(2)} (${totalPnLPercent >= 0 ? '+' : ''}${totalPnLPercent.toFixed(2)}%)
-        </div>
+    // Create area fill path (for gradient)
+    let areaD = pathD + ` L ${width - padding} ${height} L ${padding} ${height} Z`;
+
+    // Determine color based on trend
+    const trend = values[values.length - 1] >= values[0];
+    const lineColor = trend ? 'var(--accent-green)' : 'var(--accent-red)';
+    const gradientId = trend ? 'gradient-green' : 'gradient-red';
+
+    container.innerHTML = `
         <svg width="100%" height="120" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="display: block;">
             <defs>
                 <linearGradient id="gradient-green" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -1284,94 +1244,29 @@ function renderLayeredPositionChart(positionElements, totalValue, totalPnLPercen
                     <stop offset="0%" style="stop-color: rgba(255, 71, 87, 0.3); stop-opacity: 1" />
                     <stop offset="100%" style="stop-color: rgba(255, 71, 87, 0); stop-opacity: 0" />
                 </linearGradient>
-    `;
+            </defs>
 
-    // Draw each position as a line with bezel layout
-    positions.forEach((pos, index) => {
-        // Color based on PnL (not position direction)
-        const hasPositivePnL = pos.pnl >= 0;
-        const lineColor = hasPositivePnL ? 'var(--accent-green)' : 'var(--accent-red)';
-        const gradientId = hasPositivePnL ? 'gradient-green' : 'gradient-red';
-        
-        // Calculate y positions
-        const entryY = height - padding - ((pos.entryPrice - minPrice) / priceRange) * (height - padding * 2);
-        const markY = height - padding - ((pos.markPrice - minPrice) / priceRange) * (height - padding * 2);
-        
-        // Calculate x positions with bezel layout (5%-80%-5%)
-        // Left bezel: 5%, Chart area: 80%, Right bezel: 5%
-        const startX = leftBezel + (index * 8); // Small horizontal offset between lines
-        const endX = leftBezel + chartAreaWidth - (index * 8);
-        
-        // Calculate dot position at 75% mark on the right side of the chart area
-        const dotX = leftBezel + (chartAreaWidth * 0.75);
-        
-        // Create line path
-        const pathD = `M ${startX} ${entryY} L ${endX} ${markY}`;
-        
-        // Create area fill path
-        const areaD = `${pathD} L ${endX} ${height} L ${startX} ${height} Z`;
+            <!-- Gradient fill under line -->
+            <path d="${areaD}" fill="url(#${gradientId})" opacity="0.5"/>
 
-        // Add shadow/glow effect
-        const filterId = `shadow-${index}`;
-        svgContent += `
-            <filter id="${filterId}" x="-50%" y="-50%" width="200%" height="200%">
-                <feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${lineColor}" flood-opacity="0.5"/>
-            </filter>
-        `;
-
-        // Draw area fill
-        svgContent += `
-            <path d="${areaD}" fill="url(#${gradientId})" opacity="0.3" filter="url(#${filterId})"/>
-        `;
-
-        // Draw line
-        svgContent += `
+            <!-- Main line -->
             <path d="${pathD}"
                   fill="none"
                   stroke="${lineColor}"
                   stroke-width="2"
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  filter="url(#${filterId})"
+                  filter="drop-shadow(0 0 3px ${lineColor})"
                   opacity="0.9"/>
-        `;
 
-        // Draw entry point
-        svgContent += `
-            <circle cx="${startX}"
-                    cy="${entryY}"
+            <!-- End point indicator -->
+            <circle cx="${points[points.length - 1].x}"
+                    cy="${points[points.length - 1].y}"
                     r="3"
                     fill="${lineColor}"
-                    filter="url(#${filterId})"/>
-        `;
-
-        // Draw mark point
-        svgContent += `
-            <circle cx="${endX}"
-                    cy="${markY}"
-                    r="3"
-                    fill="${lineColor}"
-                    filter="url(#${filterId})"/>
-        `;
-
-        // Draw dot at 75% mark on the right side of chart area
-        svgContent += `
-            <circle cx="${dotX}"
-                    cy="${markY}"
-                    r="4"
-                    fill="${lineColor}"
-                    stroke="white"
-                    stroke-width="1"
-                    filter="url(#${filterId})"/>
-        `;
-    });
-
-    svgContent += `
-            </defs>
+                    filter="drop-shadow(0 0 4px ${lineColor})"/>
         </svg>
     `;
-
-    container.innerHTML = svgContent;
 }
 
 // ============================================================================
