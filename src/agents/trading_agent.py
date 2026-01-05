@@ -1229,7 +1229,7 @@ FULL DATASET:
             return False, f"Keep position - P&L {pnl_percent:.2f}%, confidence {ai_confidence}%"
 
     def analyze_open_positions_with_ai(self, positions_data, market_data):
-        """AI analyzes open positions and decides KEEP or CLOSE for each"""
+        """Enhanced with guaranteed TP/SL enforcement"""
         if not positions_data:
             return {}
 
@@ -1238,9 +1238,38 @@ FULL DATASET:
         add_console_log("Analyzing Open Positions", "info")
         cprint("=" * 60, "yellow")
 
-        # Build position summary
+        # CRITICAL: Check TP/SL thresholds FIRST - force close regardless of AI analysis
+        validated_decisions = {}
+        for symbol, positions in positions_data.items():
+            for pos in positions:
+                pnl_percent = pos["pnl_percent"]
+                
+                # Force TP/SL regardless of AI analysis
+                if pnl_percent >= TAKE_PROFIT_THRESHOLD:
+                    validated_decisions[symbol] = {
+                        "action": "CLOSE", 
+                        "reasoning": f"TAKE PROFIT: {pnl_percent:.2f}% >= {TAKE_PROFIT_THRESHOLD}%",
+                        "confidence": 100
+                    }
+                    cprint(f"🚨 {symbol}: TAKE PROFIT TRIGGERED - {pnl_percent:.2f}%", "red", attrs=["bold"])
+                    add_console_log(f"TAKE PROFIT: Closing {symbol} at +{pnl_percent:.2f}%", "success")
+                    continue
+                elif pnl_percent <= STOP_LOSS_THRESHOLD:
+                    validated_decisions[symbol] = {
+                        "action": "CLOSE",
+                        "reasoning": f"STOP LOSS: {pnl_percent:.2f}% <= {STOP_LOSS_THRESHOLD}%",
+                        "confidence": 100
+                    }
+                    cprint(f"🚨 {symbol}: STOP LOSS TRIGGERED - {pnl_percent:.2f}%", "red", attrs=["bold"])
+                    add_console_log(f"STOP LOSS: Closing {symbol} at {pnl_percent:.2f}%", "warning")
+                    continue
+
+        # Build position summary for remaining positions
         position_summary = []
         for symbol, positions in positions_data.items():
+            if symbol in validated_decisions:
+                continue  # Skip positions already handled by TP/SL
+                
             for pos in positions:
                 position_summary.append({
                     "symbol": symbol,
@@ -1254,6 +1283,9 @@ FULL DATASET:
         # Format market conditions
         market_summary = {}
         for symbol in positions_data.keys():
+            if symbol in validated_decisions:
+                continue  # Skip positions already handled
+                
             if symbol in market_data:
                 df = market_data[symbol]
                 if not df.empty:
@@ -1282,7 +1314,9 @@ FULL DATASET:
                         "trend": "Bullish" if current_price > latest.get("MA20", 0) else "Bearish",
                     }
 
-        user_prompt = f"""Analyze these open positions:
+        # Only analyze positions that weren't force-closed by TP/SL
+        if position_summary:
+            user_prompt = f"""Analyze these open positions:
 
 POSITIONS:
 {json.dumps(position_summary, indent=2)}
@@ -1299,127 +1333,126 @@ Return ONLY valid JSON with the following structure:
   }}
 }}"""
 
-        try:
-            response = self.chat_with_ai(POSITION_ANALYSIS_PROMPT, user_prompt)
+            try:
+                response = self.chat_with_ai(POSITION_ANALYSIS_PROMPT, user_prompt)
 
-            # Strip Markdown fences if model wrapped response in code blocks
-            if "```json" in response:
-                response = response.split("```json")[1].split("```")[0]
-            elif "```" in response:
-                response = response.split("```")[1].split("```")[0]
+                # Strip Markdown fences if model wrapped response in code blocks
+                if "```json" in response:
+                    response = response.split("```json")[1].split("```")[0]
+                elif "```" in response:
+                    response = response.split("```")[1].split("```")[0]
 
-            # Try safe JSON extraction first
-            decisions = extract_json_from_text(response)
-            if not decisions:
-                cprint("⚠️ AI response not valid JSON. Attempting text fallback...", "yellow")
+                # Try safe JSON extraction first
+                decisions = extract_json_from_text(response)
+                if not decisions:
+                    cprint("⚠️ AI response not valid JSON. Attempting text fallback...", "yellow")
 
-                text = response.lower()
-                decisions = {}
-                for symbol in positions_data.keys():
-                    if symbol.lower() in text:
-                        if "close" in text or "sell" in text:
-                            decisions[symbol] = {
-                                "action": "CLOSE",
-                                "reasoning": "Detected CLOSE or SELL keyword in fallback parsing.",
-                                "confidence": 60  # Default confidence for fallback
-                            }
-                        elif "keep" in text or "hold" in text or "open" in text:
-                            decisions[symbol] = {
-                                "action": "KEEP",
-                                "reasoning": "Detected KEEP/HOLD keyword in fallback parsing.",
-                                "confidence": 0
-                            }
+                    text = response.lower()
+                    decisions = {}
+                    for symbol in position_summary:
+                        sym = symbol["symbol"]
+                        if sym.lower() in text:
+                            if "close" in text or "sell" in text:
+                                decisions[sym] = {
+                                    "action": "CLOSE",
+                                    "reasoning": "Detected CLOSE or SELL keyword in fallback parsing.",
+                                    "confidence": 60  # Default confidence for fallback
+                                }
+                            elif "keep" in text or "hold" in text or "open" in text:
+                                decisions[sym] = {
+                                    "action": "KEEP",
+                                    "reasoning": "Detected KEEP/HOLD keyword in fallback parsing.",
+                                    "confidence": 0
+                                }
+                            else:
+                                decisions[sym] = {
+                                    "action": "KEEP",
+                                    "reasoning": "No clear directive, default KEEP.",
+                                    "confidence": 0
+                                }
                         else:
-                            decisions[symbol] = {
+                            decisions[sym] = {
                                 "action": "KEEP",
-                                "reasoning": "No clear directive, default KEEP.",
+                                "reasoning": "Symbol not mentioned, default KEEP.",
                                 "confidence": 0
                             }
+
+                    cprint(f"🧠 Fallback interpreted decisions: {decisions}", "cyan")
+
+                if not decisions:
+                    cprint("❌ Error: Could not interpret AI analysis at all.", "red")
+                    cprint(f"   Raw response: {response}", "yellow")
+                    return validated_decisions
+
+                # ============================================================================
+                # APPLY 3-TIER VALIDATION SYSTEM
+                # ============================================================================
+                cprint("\n" + "=" * 60, "magenta")
+                cprint("🛡️ APPLYING 3-TIER VALIDATION SYSTEM", "white", "on_magenta", attrs=["bold"])
+                cprint("=" * 60, "magenta")
+
+                for symbol, decision in decisions.items():
+                    action = decision.get("action", "KEEP")
+                    reason = decision.get("reasoning", "")
+                    ai_confidence = int(decision.get("confidence", 0))
+
+                    if action.upper() == "CLOSE":
+                        # Get position data for validation
+                        pos_data = positions_data.get(symbol, [{}])[0]
+                        pnl_percent = pos_data.get("pnl_percent", 0)
+                        age_hours = pos_data.get("age_hours", 0)
+
+                        # Run validation
+                        should_close, validation_reason = self.validate_close_decision(
+                            symbol, pnl_percent, age_hours, ai_confidence
+                        )
+
+                        if should_close:
+                            validated_decisions[symbol] = {
+                                "action": "CLOSE",
+                                "reasoning": f"{reason} | Validation: {validation_reason}",
+                                "confidence": ai_confidence
+                            }
+                            cprint(f"✅ {symbol}: CLOSE APPROVED", "green", attrs=["bold"])
+                        else:
+                            validated_decisions[symbol] = {
+                                "action": "KEEP",
+                                "reasoning": f"AI suggested CLOSE but validation BLOCKED: {validation_reason}",
+                                "confidence": 0
+                            }
+                            cprint(f"🛡️ {symbol}: CLOSE BLOCKED → FORCING KEEP", "cyan", attrs=["bold"])
+                            add_console_log(f"🛡️ {symbol} CLOSE blocked: {validation_reason}", "warning")
                     else:
-                        decisions[symbol] = {
-                            "action": "KEEP",
-                            "reasoning": "Symbol not mentioned, default KEEP.",
-                            "confidence": 0
-                        }
+                        # KEEP decision - no validation needed
+                        validated_decisions[symbol] = decision
 
-                cprint(f"🧠 Fallback interpreted decisions: {decisions}", "cyan")
+            except Exception as e:
+                cprint(f"❌ Error in AI analysis: {e}", "red")
+                import traceback
+                traceback.print_exc()
 
-            if not decisions:
-                cprint("❌ Error: Could not interpret AI analysis at all.", "red")
-                cprint(f"   Raw response: {response}", "yellow")
-                return {}
+        # Print final validated decisions
+        cprint("\n" + "=" * 60, "magenta")
+        cprint("🎯 FINAL VALIDATED DECISIONS:", "white", "on_magenta", attrs=["bold"])
+        cprint("=" * 60, "magenta")
 
-            # ============================================================================
-            # APPLY 3-TIER VALIDATION SYSTEM
-            # ============================================================================
-            cprint("\n" + "=" * 60, "magenta")
-            cprint("🛡️ APPLYING 3-TIER VALIDATION SYSTEM", "white", "on_magenta", attrs=["bold"])
-            cprint("=" * 60, "magenta")
+        for symbol, decision in validated_decisions.items():
+            action = decision.get("action", "UNKNOWN")
+            reason = decision.get("reasoning", "")
+            confidence = decision.get("confidence", 0)
+            color = "red" if action.upper() == "CLOSE" else "green"
+            cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
+            # Short format for dashboard: "SYMBOL -> ACTION"
+            add_console_log(f"{symbol} -> {action}", "info")
 
-            validated_decisions = {}
-            for symbol, decision in decisions.items():
-                action = decision.get("action", "KEEP")
-                reason = decision.get("reasoning", "")
-                ai_confidence = int(decision.get("confidence", 0))
+            # Short format for dashboard
+            if action.upper() == "CLOSE":
+                add_console_log(f"{symbol} -> CLOSE ({confidence}% Sure)", "warning")
+            else:
+                add_console_log(f"{symbol} -> KEEP", "info")
 
-                if action.upper() == "CLOSE":
-                    # Get position data for validation
-                    pos_data = positions_data.get(symbol, [{}])[0]
-                    pnl_percent = pos_data.get("pnl_percent", 0)
-                    age_hours = pos_data.get("age_hours", 0)
-
-                    # Run validation
-                    should_close, validation_reason = self.validate_close_decision(
-                        symbol, pnl_percent, age_hours, ai_confidence
-                    )
-
-                    if should_close:
-                        validated_decisions[symbol] = {
-                            "action": "CLOSE",
-                            "reasoning": f"{reason} | Validation: {validation_reason}",
-                            "confidence": ai_confidence
-                        }
-                        cprint(f"✅ {symbol}: CLOSE APPROVED", "green", attrs=["bold"])
-                    else:
-                        validated_decisions[symbol] = {
-                            "action": "KEEP",
-                            "reasoning": f"AI suggested CLOSE but validation BLOCKED: {validation_reason}",
-                            "confidence": 0
-                        }
-                        cprint(f"🛡️ {symbol}: CLOSE BLOCKED → FORCING KEEP", "cyan", attrs=["bold"])
-                        add_console_log(f"🛡️ {symbol} CLOSE blocked: {validation_reason}", "warning")
-                else:
-                    # KEEP decision - no validation needed
-                    validated_decisions[symbol] = decision
-
-            # Print final validated decisions
-            cprint("\n" + "=" * 60, "magenta")
-            cprint("🎯 FINAL VALIDATED DECISIONS:", "white", "on_magenta", attrs=["bold"])
-            cprint("=" * 60, "magenta")
-
-            for symbol, decision in validated_decisions.items():
-                action = decision.get("action", "UNKNOWN")
-                reason = decision.get("reasoning", "")
-                confidence = decision.get("confidence", 0)
-                color = "red" if action.upper() == "CLOSE" else "green"
-                cprint(f"   {symbol:<10} → {action:<6} | {reason}", color)
-                # Short format for dashboard: "SYMBOL -> ACTION"
-                add_console_log(f"{symbol} -> {action}", "info")
-
-                # Short format for dashboard
-                if action.upper() == "CLOSE":
-                    add_console_log(f"{symbol} -> CLOSE ({confidence}% Sure)", "warning")
-                else:
-                    add_console_log(f"{symbol} -> KEEP", "info")
-
-            cprint("=" * 60 + "\n", "magenta")
-            return validated_decisions
-
-        except Exception as e:
-            cprint(f"❌ Error in AI analysis: {e}", "red")
-            import traceback
-            traceback.print_exc()
-            return {}
+        cprint("=" * 60 + "\n", "magenta")
+        return validated_decisions
 
     def execute_position_closes(self, close_decisions):
         """Execute closes for positions marked by AI"""
@@ -1809,15 +1842,22 @@ Return ONLY valid JSON with the following structure:
                 return []
 
             # ================================================================
-            # STEP 3: Get Account Balance
+            # STEP 3: Get Account Balance and Calculate Total Equity
             # ================================================================
             account_balance = get_account_balance(self.account)
             if account_balance <= 0:
                 cprint("❌ Account balance is zero. Cannot allocate.", "red")
                 return []
 
+            # CRITICAL FIX: Calculate total equity including existing positions
+            total_equity = account_balance + total_position_value
             available_balance = account_balance - total_position_value
             min_order_notional = 12.0  # HyperLiquid minimum
+
+            cprint(f"💰 Account Balance (USDC): ${account_balance:.2f}", "cyan")
+            cprint(f"💎 Total Equity (Balance + Positions): ${total_equity:.2f}", "cyan")
+            cprint(f"📊 Positions Value: ${total_position_value:.2f}", "cyan")
+            cprint(f"💵 Available Balance: ${available_balance:.2f}", "green")
 
             # ================================================================
             # STEP 4: Build Portfolio State Summary for AI
@@ -1850,8 +1890,7 @@ Return ONLY valid JSON with the following structure:
             cprint(portfolio_state, "white")
             cprint(f"\n📈 AI Signals:", "cyan")
             cprint(signals_text, "white")
-            cprint(f"\n💰 Available Balance: ${available_balance:.2f}", "green")
-            cprint(f"⏱️  Cycle Time: {SLEEP_BETWEEN_RUNS_MINUTES} min (minimum hold time)", "yellow")
+            cprint(f"\n⏱️  Cycle Time: {SLEEP_BETWEEN_RUNS_MINUTES} min (minimum hold time)", "yellow")
 
             # ================================================================
             # STEP 5: Ask AI for Allocation Plan
@@ -1862,7 +1901,7 @@ Return ONLY valid JSON with the following structure:
             prompt = SMART_ALLOCATION_PROMPT.format(
                 portfolio_state=portfolio_state,
                 signals=signals_text,
-                available_balance=available_balance,
+                available_balance=total_equity,  # CRITICAL: Use total equity instead of available balance
                 leverage=LEVERAGE,
                 max_position_pct=MAX_POSITION_PERCENTAGE,
                 cash_buffer_pct=CASH_PERCENTAGE,
@@ -1877,7 +1916,7 @@ Return ONLY valid JSON with the following structure:
 
             if not ai_response:
                 cprint("❌ No response from AI. Using fallback allocation.", "red")
-                return self._fallback_equal_allocation(signals, available_balance, open_positions)
+                return self._fallback_equal_allocation(signals, total_equity, open_positions)
 
             # ================================================================
             # STEP 6: Parse AI Response
@@ -1888,7 +1927,7 @@ Return ONLY valid JSON with the following structure:
 
                 if not allocation_plan or "actions" not in allocation_plan:
                     cprint("⚠️ AI response missing 'actions'. Using fallback.", "yellow")
-                    return self._fallback_equal_allocation(signals, available_balance, open_positions)
+                    return self._fallback_equal_allocation(signals, total_equity, open_positions)
 
                 actions = allocation_plan["actions"]
 
@@ -1947,7 +1986,7 @@ Return ONLY valid JSON with the following structure:
             except Exception as e:
                 cprint(f"⚠️ Error parsing AI response: {e}", "yellow")
                 cprint(f"   Response: {ai_response[:200]}...", "white")
-                return self._fallback_equal_allocation(signals, available_balance, open_positions)
+                return self._fallback_equal_allocation(signals, total_equity, open_positions)
 
         except Exception as e:
             cprint(f"❌ Error in portfolio allocation: {str(e)}", "red")
@@ -2144,19 +2183,52 @@ Return ONLY valid JSON with the following structure:
 
                         notional = margin_usd * LEVERAGE
 
-                        # Check if we need to close opposite position first
+                        # CRITICAL FIX: Handle position conflicts more efficiently
                         if im_in_pos and not is_long:
-                            cprint(f"   ⚠️ Closing SHORT before opening LONG...", "yellow")
-                            close_ok = False
+                            # Opposite position exists - allocate in opposite direction instead of closing first
+                            cprint(f"   🔄 Opposite position detected - allocating in opposite direction", "cyan")
+                            
+                            # For HyperLiquid, we can directly open opposite position which will net against existing
                             if EXCHANGE == "HYPERLIQUID":
-                                close_ok = n.close_complete_position(symbol, self.account)
+                                cprint(f"   📈 Opening LONG to net against existing SHORT", "cyan")
+                                result = n.ai_entry(symbol, notional, leverage=LEVERAGE, account=self.account)
+                                
+                                if result:
+                                    cprint(f"   ✅ LONG position opened (netting against SHORT)", "green")
+                                    add_console_log(f"✅ Opened LONG {symbol} ${notional:.2f} (netting)", "success")
+                                    
+                                    # Update tracker to reflect net position
+                                    if POSITION_TRACKER_AVAILABLE:
+                                        try:
+                                            record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=True)
+                                        except Exception as e:
+                                            cprint(f"   ⚠️ Position tracker error: {e}", "yellow")
+
+                                    try:
+                                        log_position_open(symbol, "LONG", notional)
+                                    except Exception as e:
+                                        cprint(f"   ⚠️ Position log error: {e}", "yellow")
+
+                                    executed_count += 1
+                                    continue  # Skip the rest of the logic for this action
+                                else:
+                                    cprint(f"   ❌ Failed to open LONG position", "red")
+                                    add_console_log(f"❌ Failed to open LONG {symbol} ${notional:.2f}", "error")
+                                    failed_count += 1
+                                    continue
                             else:
-                                n.chunk_kill(symbol, max_usd_order_size, slippage)
-                                close_ok = True
-                            if not close_ok:
-                                cprint(f"   ⚠️ Failed to close SHORT, skipping LONG entry", "yellow")
-                                continue
-                            time.sleep(1)
+                                # For other exchanges, fall back to closing first
+                                cprint(f"   ⚠️ Closing SHORT before opening LONG...", "yellow")
+                                close_ok = False
+                                if EXCHANGE == "HYPERLIQUID":
+                                    close_ok = n.close_complete_position(symbol, self.account)
+                                else:
+                                    n.chunk_kill(symbol, max_usd_order_size, slippage)
+                                    close_ok = True
+                                if not close_ok:
+                                    cprint(f"   ⚠️ Failed to close SHORT, skipping LONG entry", "yellow")
+                                    continue
+                                time.sleep(1)
 
                         cprint(f"   📈 Opening LONG: ${notional:.2f} notional (${margin_usd:.2f} margin)", "green")
 
@@ -2203,19 +2275,52 @@ Return ONLY valid JSON with the following structure:
 
                         notional = margin_usd * LEVERAGE
 
-                        # Check if we need to close opposite position first
+                        # CRITICAL FIX: Handle position conflicts more efficiently
                         if im_in_pos and is_long:
-                            cprint(f"   ⚠️ Closing LONG before opening SHORT...", "yellow")
-                            close_ok = False
+                            # Opposite position exists - allocate in opposite direction instead of closing first
+                            cprint(f"   🔄 Opposite position detected - allocating in opposite direction", "cyan")
+                            
+                            # For HyperLiquid, we can directly open opposite position which will net against existing
                             if EXCHANGE == "HYPERLIQUID":
-                                close_ok = n.close_complete_position(symbol, self.account)
+                                cprint(f"   📉 Opening SHORT to net against existing LONG", "cyan")
+                                result = n.open_short(symbol, notional, leverage=LEVERAGE, account=self.account)
+                                
+                                if result:
+                                    cprint(f"   ✅ SHORT position opened (netting against LONG)", "green")
+                                    add_console_log(f"✅ Opened SHORT {symbol} ${notional:.2f} (netting)", "success")
+                                    
+                                    # Update tracker to reflect net position
+                                    if POSITION_TRACKER_AVAILABLE:
+                                        try:
+                                            record_position_entry(symbol=symbol, entry_price=0, size=notional, is_long=False)
+                                        except Exception as e:
+                                            cprint(f"   ⚠️ Position tracker error: {e}", "yellow")
+
+                                    try:
+                                        log_position_open(symbol, "SHORT", notional)
+                                    except Exception as e:
+                                        cprint(f"   ⚠️ Position log error: {e}", "yellow")
+
+                                    executed_count += 1
+                                    continue  # Skip the rest of the logic for this action
+                                else:
+                                    cprint(f"   ❌ Failed to open SHORT position", "red")
+                                    add_console_log(f"❌ Failed to open SHORT {symbol} ${notional:.2f}", "error")
+                                    failed_count += 1
+                                    continue
                             else:
-                                n.chunk_kill(symbol, max_usd_order_size, slippage)
-                                close_ok = True
-                            if not close_ok:
-                                cprint(f"   ⚠️ Failed to close LONG, skipping SHORT entry", "yellow")
-                                continue
-                            time.sleep(1)
+                                # For other exchanges, fall back to closing first
+                                cprint(f"   ⚠️ Closing LONG before opening SHORT...", "yellow")
+                                close_ok = False
+                                if EXCHANGE == "HYPERLIQUID":
+                                    close_ok = n.close_complete_position(symbol, self.account)
+                                else:
+                                    n.chunk_kill(symbol, max_usd_order_size, slippage)
+                                    close_ok = True
+                                if not close_ok:
+                                    cprint(f"   ⚠️ Failed to close LONG, skipping SHORT entry", "yellow")
+                                    continue
+                                time.sleep(1)
 
                         if EXCHANGE == "SOLANA":
                             cprint(f"   ⚠️ SHORT not supported on SOLANA", "yellow")
@@ -2395,7 +2500,7 @@ Return ONLY valid JSON with the following structure:
                     positions_held += 1
 
                 elif signal_contradicts_position:
-                    # Signal contradicts position → CLOSE
+                    # Signal contradicts position → CLOSE (ONLY CLOSE, NO OPEN LOGIC HERE)
                     if action == "SELL" and is_long:
                         cprint("🚨 SELL signal vs LONG position - CLOSING", "white", "on_red")
                     else:  # BUY signal vs SHORT position
@@ -2497,9 +2602,37 @@ Return ONLY valid JSON with the following structure:
         cprint("=" * 60 + "\n", "cyan")
 
     def should_stop(self):
-        """Check if agent should stop execution"""
+        """Enhanced stop signal checking with TP/SL thresholds"""
         if self.stop_check_callback is not None:
-            return self.stop_check_callback()
+            if self.stop_check_callback():
+                return True
+        
+        # Check for immediate TP/SL actions needed
+        return self._check_immediate_tp_sl_actions()
+
+    def _check_immediate_tp_sl_actions(self):
+        """Check if any positions need immediate TP/SL execution"""
+        try:
+            for symbol in self.symbols:
+                if symbol in EXCLUDED_TOKENS:
+                    continue
+                    
+                pos_data = n.get_position(symbol, self.account)
+                _, im_in_pos, _, _, _, pnl_perc, _ = pos_data
+                
+                if im_in_pos and pnl_perc != 0:
+                    # Check TP threshold
+                    if pnl_perc >= TAKE_PROFIT_THRESHOLD:
+                        cprint(f"🚨 TAKE PROFIT needed for {symbol}: {pnl_perc:.2f}%", "red")
+                        return True
+                    
+                    # Check SL threshold  
+                    if pnl_perc <= STOP_LOSS_THRESHOLD:
+                        cprint(f"🚨 STOP LOSS needed for {symbol}: {pnl_perc:.2f}%", "red")
+                        return True
+        except Exception as e:
+            cprint(f"⚠️ Error checking TP/SL: {e}", "yellow")
+        
         return False
 
     def run(self):
