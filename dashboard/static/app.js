@@ -1166,13 +1166,97 @@ async function logout() {
 // PULSE GRAPH - LAYERED POSITION CHART
 // ============================================================================
 
-async function updatePortfolioChart() {
+// Helper function to get position data with WebSocket/API priority
+async function getPositionsForChart() {
     try {
-        // Get current positions from the positions container
+        // Priority 1: Try WebSocket stream data (real-time)
+        if (positionEventSource && positionEventSource.readyState === EventSource.OPEN) {
+            // WebSocket is active, but we need to get the latest data
+            // For now, fall back to API since WebSocket doesn't provide direct access
+        }
+        
+        // Priority 2: Try API data first (more reliable than DOM)
+        try {
+            const response = await fetch('/api/data');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.positions && data.positions.length > 0) {
+                    return { positions: data.positions, source: 'API' };
+                }
+            }
+        } catch (apiError) {
+            console.warn('API data failed:', apiError);
+        }
+        
+        // Priority 3: Try WebSocket positions endpoint
+        try {
+            const response = await fetch('/api/positions');
+            if (response.ok) {
+                const positions = await response.json();
+                if (positions && positions.length > 0) {
+                    return { positions: positions, source: 'WebSocket' };
+                }
+            }
+        } catch (wsError) {
+            console.warn('WebSocket positions endpoint failed:', wsError);
+        }
+        
+        // Priority 4: Fallback to DOM parsing (last resort)
         const positionsContainer = document.getElementById('positions');
         const positionElements = positionsContainer.querySelectorAll('.position');
         
-        if (positionElements.length === 0) {
+        if (positionElements.length > 0) {
+            // Parse DOM positions
+            const positions = [];
+            positionElements.forEach(posEl => {
+                const symbolEl = posEl.querySelector('.symbol-long, .symbol-short');
+                const sizeEl = posEl.querySelector('.position-value:nth-child(2)');
+                const entryEl = posEl.querySelector('.position-value:nth-child(4)');
+                const markEl = posEl.querySelector('.position-value:nth-child(5)');
+                const pnlEl = posEl.querySelector('.position-value.pnl');
+                
+                if (symbolEl && sizeEl && entryEl && markEl && pnlEl) {
+                    const symbol = symbolEl.textContent;
+                    const size = parseFloat(sizeEl.textContent);
+                    const entryPrice = parseFloat(entryEl.textContent.replace('$', ''));
+                    const markPrice = parseFloat(markEl.textContent.replace('$', ''));
+                    const pnlText = pnlEl.textContent.split('(')[0].trim();
+                    const pnl = parseFloat(pnlText.replace('$', '').replace('+', '').replace(',', ''));
+                    
+                    if (!isNaN(size) && !isNaN(entryPrice) && !isNaN(markPrice)) {
+                        positions.push({
+                            symbol,
+                            size,
+                            entryPrice,
+                            markPrice,
+                            pnl,
+                            isLong: symbolEl.classList.contains('symbol-long'),
+                            side: symbolEl.classList.contains('symbol-long') ? 'LONG' : 'SHORT'
+                        });
+                    }
+                }
+            });
+            
+            if (positions.length > 0) {
+                return { positions, source: 'DOM' };
+            }
+        }
+        
+        // Final fallback - return empty array
+        return { positions: [], source: 'empty' };
+        
+    } catch (error) {
+        console.error('Error getting positions for chart:', error);
+        return { positions: [], source: 'error' };
+    }
+}
+
+async function updatePortfolioChart() {
+    try {
+        // Get position data with fallback mechanism
+        const { positions, source } = await getPositionsForChart();
+        
+        if (positions.length === 0) {
             document.getElementById('portfolio-chart').innerHTML = '<div class="empty-state">No open positions</div>';
             return;
         }
@@ -1181,18 +1265,13 @@ async function updatePortfolioChart() {
         let totalValue = 0;
         let totalPnL = 0;
 
-        positionElements.forEach(posEl => {
-            const valueEl = posEl.querySelector('.position-value:nth-child(3)');
-            const pnlEl = posEl.querySelector('.position-value.pnl');
+        positions.forEach(pos => {
+            // Calculate position value and PnL
+            const positionValue = Math.abs(pos.size) * pos.markPrice;
+            const pnl = pos.pnl;
             
-            if (valueEl && pnlEl) {
-                const value = parseFloat(valueEl.textContent.replace('$', '').replace(',', ''));
-                const pnlText = pnlEl.textContent.split('(')[0].trim();
-                const pnl = parseFloat(pnlText.replace('$', '').replace('+', '').replace(',', ''));
-                
-                if (!isNaN(value)) totalValue += value;
-                if (!isNaN(pnl)) totalPnL += pnl;
-            }
+            totalValue += positionValue;
+            totalPnL += pnl;
         });
 
         const change = totalValue > 0 ? ((totalPnL / totalValue) * 100) : 0;
@@ -1201,15 +1280,15 @@ async function updatePortfolioChart() {
         badge.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
         badge.className = `badge ${change >= 0 ? 'positive' : 'negative'}`;
 
-        // Render layered position chart
-        renderLayeredPositionChart(positionElements, totalValue, change);
+        // Render layered position chart using position data
+        renderLayeredPositionChartFromData(positions, totalValue, change);
 
     } catch (error) {
         console.error('Error updating pulse graph:', error);
     }
 }
 
-function renderLayeredPositionChart(positionElements, totalValue, totalPnLPercent) {
+function renderLayeredPositionChartFromData(positions, totalValue, totalPnLPercent) {
     const container = document.getElementById('portfolio-chart');
     const width = 600;
     const height = 120;
@@ -1221,37 +1300,6 @@ function renderLayeredPositionChart(positionElements, totalValue, totalPnLPercen
     const leftBezel = width * bezelWidth;
     const rightBezel = width * bezelWidth;
     const chartAreaWidth = width * chartWidth;
-
-    // Get positions data
-    const positions = [];
-    positionElements.forEach((posEl, index) => {
-        const symbolEl = posEl.querySelector('.symbol-long, .symbol-short');
-        const sizeEl = posEl.querySelector('.position-value:nth-child(2)');
-        const entryEl = posEl.querySelector('.position-value:nth-child(4)');
-        const markEl = posEl.querySelector('.position-value:nth-child(5)');
-        const pnlEl = posEl.querySelector('.position-value.pnl');
-        
-        if (symbolEl && sizeEl && entryEl && markEl && pnlEl) {
-            const symbol = symbolEl.textContent;
-            const size = parseFloat(sizeEl.textContent);
-            const entryPrice = parseFloat(entryEl.textContent.replace('$', ''));
-            const markPrice = parseFloat(markEl.textContent.replace('$', ''));
-            const pnlText = pnlEl.textContent.split('(')[0].trim();
-            const pnl = parseFloat(pnlText.replace('$', '').replace('+', '').replace(',', ''));
-            
-            if (!isNaN(size) && !isNaN(entryPrice) && !isNaN(markPrice)) {
-                positions.push({
-                    symbol,
-                    size,
-                    entryPrice,
-                    markPrice,
-                    pnl,
-                    isLong: symbolEl.classList.contains('symbol-long'),
-                    index
-                });
-            }
-        }
-    });
 
     if (positions.length === 0) {
         container.innerHTML = '<div class="empty-state">No position data available</div>';
@@ -1372,6 +1420,43 @@ function renderLayeredPositionChart(positionElements, totalValue, totalPnLPercen
     `;
 
     container.innerHTML = svgContent;
+}
+
+// Legacy function for backward compatibility (DOM-based)
+function renderLayeredPositionChart(positionElements, totalValue, totalPnLPercent) {
+    // Convert DOM elements to position data
+    const positions = [];
+    positionElements.forEach((posEl, index) => {
+        const symbolEl = posEl.querySelector('.symbol-long, .symbol-short');
+        const sizeEl = posEl.querySelector('.position-value:nth-child(2)');
+        const entryEl = posEl.querySelector('.position-value:nth-child(4)');
+        const markEl = posEl.querySelector('.position-value:nth-child(5)');
+        const pnlEl = posEl.querySelector('.position-value.pnl');
+        
+        if (symbolEl && sizeEl && entryEl && markEl && pnlEl) {
+            const symbol = symbolEl.textContent;
+            const size = parseFloat(sizeEl.textContent);
+            const entryPrice = parseFloat(entryEl.textContent.replace('$', ''));
+            const markPrice = parseFloat(markEl.textContent.replace('$', ''));
+            const pnlText = pnlEl.textContent.split('(')[0].trim();
+            const pnl = parseFloat(pnlText.replace('$', '').replace('+', '').replace(',', ''));
+            
+            if (!isNaN(size) && !isNaN(entryPrice) && !isNaN(markPrice)) {
+                positions.push({
+                    symbol,
+                    size,
+                    entryPrice,
+                    markPrice,
+                    pnl,
+                    isLong: symbolEl.classList.contains('symbol-long'),
+                    index
+                });
+            }
+        }
+    });
+
+    // Use the new data-based function
+    renderLayeredPositionChartFromData(positions, totalValue, totalPnLPercent);
 }
 
 // ============================================================================
