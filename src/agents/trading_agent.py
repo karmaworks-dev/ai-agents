@@ -2719,54 +2719,53 @@ Return ONLY valid JSON with the following structure:
                 exchange=EXCHANGE,
             )
 
-            if self.should_stop():
+if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
                 return
 
-        # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
-        cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
-        except
+            # STEP 5: ANALYZE TOKENS FOR NEW ENTRIES
+            cprint("\n📈 Analyzing tokens for new entry opportunities...", "white", "on_blue")
+            
+            # Ensure we analyze all symbols, even if market_data is empty
+            tokens_to_analyze = self.symbols
+            if market_data:
+                # Use market data if available
+                for token in tokens_to_analyze:
+                    if self.should_stop():
+                        add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
+                        break  # Changed from return to break to continue with the rest of the cycle
 
-        # Ensure we analyze all symbols, even if market_data is empty
-        tokens_to_analyze = self.symbols
-        if market_data:
-            # Use market data if available
-            for token in tokens_to_analyze:
-                if self.should_stop():
-                    add_console_log(f"ℹ️ Stop signal received - stopping analysis at {token}", "warning")
-                    break  # Changed from return to break to continue with the rest of the cycle
+                    cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
+                    add_console_log(f"📊 Analyzing {token}...", "info")
 
-                cprint(f"\n📊 Analyzing {token}...", "white", "on_green")
-                add_console_log(f"📊 Analyzing {token}...", "info")
+                    # Get market data for this token (may be None if not collected)
+                    token_data = market_data.get(token)
+                    if not token_data:
+                        cprint(f"   ⚠️ No market data available for {token} - skipping analysis", "yellow")
+                        add_console_log(f"⚠️ No market data for {token} - skipped", "warning")
+                        continue
 
-                # Get market data for this token (may be None if not collected)
-                token_data = market_data.get(token)
-                if not token_data:
-                    cprint(f" ⚠️ No market data available for {token} - skipping analysis", "yellow")
-                    add_console_log(f"⚠️ No market data for {token} - skipped", "warning")
-                    continue
+                    if strategy_signals and token in strategy_signals:
+                        token_data["strategy_signals"] = strategy_signals[token]
 
-                if strategy_signals and token in strategy_signals:
-                    token_data["strategy_signals"] = strategy_signals[token]
+                    try:
+                        analysis = self.analyze_market_data(token, token_data)
+                        if analysis:
+                            print(f"\n📈 Analysis for {token}:")
+                            print(analysis)
+                            print("\n" + "=" * 50 + "\n")
+                    except Exception as e:
+                        cprint(f"   ❌ Error analyzing {token}: {e}", "red")
+                        add_console_log(f"❌ Error analyzing {token}: {e}", "error")
+                        continue
+            else:
+                # No market data collected - log and continue
+                cprint("   ⚠️ No market data available - skipping token analysis", "yellow")
+                add_console_log("⚠️ No market data available - skipped token analysis", "warning")
 
-                try:
-                    analysis = self.analyze_market_data(token, token_data)
-                    if analysis:
-                        print(f"\n📈 Analysis for {token}:")
-                        print(analysis)
-                        print("\n" + "=" * 50 + "\n")
-                except Exception as e:
-                    cprint(f" ❌ Error analyzing {token}: {e}", "red")
-                    add_console_log(f"❌ Error analyzing {token}: {e}", "error")
-                    continue
-        else:
-            # No market data collected - log and continue
-            cprint(" ⚠️ No market data available - skipping token analysis", "yellow")
-            add_console_log("⚠️ No market data available - skipped token analysis", "warning")
-
-        if self.should_stop():
-            add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
-            return
+            if self.should_stop():
+                add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
+                return
 
             # STEP 6: SHOW RECOMMENDATIONS
             cprint("\n📊 AI TRADING RECOMMENDATIONS:", "white", "on_blue")
