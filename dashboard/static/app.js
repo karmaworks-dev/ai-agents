@@ -354,7 +354,7 @@ function updateTrades(trades) {
     const container = document.getElementById('trades');
     
     if (!trades || trades.length === 0) {
-        container.innerHTML = '<div class="empty-state">No recent trades</div>';
+        container.innerHTML = '<div class="empty-state"></div>';
         return;
     }
     
