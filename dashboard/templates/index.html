@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Puls-R Automated AI Trading</title>
+    <title>Puls-R AI Trading</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -61,14 +61,19 @@
                 <span class="sublabel">Total</span>
             </div>
             <div class="summary-item">
-                <span class="label">USDC</span>
+                <span class="label">Balance</span>
                 <span class="value" id="balance">$0.00</span>
-                <span class="sublabel">avalable</span>
+                <span class="sublabel">USDC</span>
             </div>
             <div class="summary-item">
                 <span class="label">P&L</span>
                 <span class="value pnl" id="pnl">$0.00</span>
                 <span class="sublabel" id="pnl-pct">0.00%</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">Exchange</span>
+                <span class="value" id="exchange">HyperLiquid</span>
+                <span class="sublabel" id="status">Connected</span>
             </div>
         </div>
 
@@ -76,6 +81,19 @@
         <div class="main-content">
             <!-- Left Panel: Positions & Trades -->
             <div class="panel">
+                <!-- Portfolio Evolution -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Pulse Graph</h2>
+                        <span class="badge" id="portfolio-change">0%</span>
+                    </div>
+                    <div class="portfolio-chart" id="portfolio-chart">
+                        <!-- Chart will be rendered here -->
+                    </div>
+                    <div class="trades-container" id="trades">
+                        <div class="empty-state"></div>
+                    </div>
+                </div>
                 <!-- Positions -->
                 <div class="card">
                     <div class="card-header">
@@ -92,19 +110,8 @@
                         </button>
                     </div>
                 </div>
-                <!-- Portfolio Evolution -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Pulse Graph</h2>
-                        <span class="badge" id="portfolio-change">0%</span>
-                    </div>
-                    <div class="portfolio-chart" id="portfolio-chart">
-                        <!-- Chart will be rendered here -->
-                    </div>
-                    <div class="trades-container" id="trades">
-                        <div class="empty-state">No Recent Trades</div>
-                    </div>
-                </div>            
+
+                
             </div>
 
             <!-- Right Panel: Console -->
