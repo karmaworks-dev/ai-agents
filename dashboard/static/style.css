@@ -1014,11 +1014,11 @@ textarea.setting-input {
 
 /* Newsticker */
 .newsticker {
-    height: 12px;
-    line-height: 12px;
-    font-size: 11px;
+    height: 14px;
+    line-height: 14px;
+    font-size: 12px;
     padding: 0 12px;
-    background: rgba(255,255,255,0.02);
+    background: #000000;
     border-bottom: 1px solid var(--border-color);
     color: var(--text-secondary);
     overflow: hidden;
