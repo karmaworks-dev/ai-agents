@@ -79,9 +79,45 @@
 
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Left Panel: Positions & Trades -->
-            <div class="panel">
-                <!-- Positions -->
+            <!-- Left Column - 25% -->
+            <div class="column column-left">
+                <!-- Pulse Graph Section (30% height) -->
+                <div class="pulse-graph-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Pulse Graph</h2>
+                            <span class="badge" id="portfolio-change">0%</span>
+                        </div>
+                        <div class="portfolio-chart" id="portfolio-chart">
+                            <!-- Chart will be rendered here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Order Book Section (70% height) -->
+                <div class="order-book-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>Order Book</h2>
+                            <div class="symbol-tabs" id="order-book-tabs">
+                                <!-- Tabs will be populated dynamically -->
+                            </div>
+                        </div>
+                        <div class="order-book-container" id="order-book-container">
+                            <div class="order-book-ticker" id="order-book-ticker">
+                                <!-- Order book ticker will be rendered here -->
+                            </div>
+                            <div class="order-book-content" id="order-book-content">
+                                <div class="order-book-empty">Select a symbol to view order book</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Column - 45% -->
+            <div class="column column-center">
+                <!-- Open Positions -->
                 <div class="card">
                     <div class="card-header">
                         <h2>Open Positions</h2>
@@ -98,30 +134,94 @@
                     </div>
                 </div>
 
-                <!-- Portfolio Evolution -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2>Pulse Graph</h2>
-                        <span class="badge" id="portfolio-change">0%</span>
-                    </div>
-                    <div class="portfolio-chart" id="portfolio-chart">
-                        <!-- Chart will be rendered here -->
-                    </div>
-                    <div class="trades-container" id="trades">
-                        <div class="empty-state">No recent trades</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right Panel: Console -->
-            <div class="console-panel">
-                <div class="card console-card">
+                <!-- Agent Console -->
+                <div class="console-card">
                     <div class="card-header">
                         <h2>Agent Console</h2>
                         <button class="btn-small" id="clear-console" onclick="clearConsole()">Clear</button>
                     </div>
                     <div class="console-output" id="console">
                         <div class="console-line">🌐 Dashboard initialized...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - 30% -->
+            <div class="column column-right">
+                <!-- Account Information Panel -->
+                <div class="card account-panel">
+                    <div class="account-header">
+                        <h2>Account Information</h2>
+                    </div>
+                    <div class="account-content">
+                        <div class="account-user-info">
+                            <div class="user-wallet">
+                                <label>Wallet Address:</label>
+                                <div class="wallet-address" id="wallet-address">0xA871...8078</div>
+                                <button class="btn-copy" onclick="copyWalletAddress()">Copy</button>
+                            </div>
+                            <div class="user-details">
+                                <div class="user-username" id="account-username">Username</div>
+                                <div class="user-plan" id="current-plan">Current Plan: Free</div>
+                            </div>
+                        </div>
+                        
+                        <div class="account-metrics">
+                            <div class="metric-item">
+                                <label>Spot Balance:</label>
+                                <div class="metric-value" id="spot-balance">$0.00</div>
+                            </div>
+                            <div class="metric-item">
+                                <label>Perps Balance:</label>
+                                <div class="metric-value" id="perps-balance">$0.00</div>
+                            </div>
+                            <div class="metric-item">
+                                <label>Unrealized PNL:</label>
+                                <div class="metric-value pnl" id="unrealized-pnl">$0.00</div>
+                            </div>
+                            <div class="metric-item">
+                                <label>Cross Margin Ratio:</label>
+                                <div class="metric-value" id="margin-ratio">0%</div>
+                            </div>
+                            <div class="metric-item">
+                                <label>Maintenance Margin:</label>
+                                <div class="metric-value" id="maintenance-margin">$0.00</div>
+                            </div>
+                            <div class="metric-item">
+                                <label>Account Leverage:</label>
+                                <div class="metric-value" id="account-leverage">1x</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Settings Panel -->
+                <div class="card settings-panel">
+                    <div class="settings-header">
+                        <h2>Agent Settings</h2>
+                        <button class="btn-edit-settings" onclick="openSettings()">Edit</button>
+                    </div>
+                    <div class="settings-content">
+                        <div class="setting-row">
+                            <div class="setting-label">Monitored Tokens:</div>
+                            <div class="setting-value" id="monitored-tokens">BTC, ETH, SOL</div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label">Timeframe:</div>
+                            <div class="setting-value" id="current-timeframe">15m</div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label">Strategy:</div>
+                            <div class="setting-value" id="current-strategy">Example Strategy</div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label">Confidence Threshold:</div>
+                            <div class="setting-value" id="confidence-threshold">0.7</div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-label">Cycle Minutes:</div>
+                            <div class="setting-value" id="cycle-minutes">15</div>
+                        </div>
                     </div>
                 </div>
             </div>

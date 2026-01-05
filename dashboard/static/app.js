@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load tier info to apply feature locks
     loadTierInfo();
 
+    // Initialize new components
+    window.orderBookManager = new OrderBookManager();
+    loadAccountInfo();
+    loadAgentSettings();
+
     // Initial updates
     updateDashboard();
     updateConsole();
@@ -1267,6 +1272,252 @@ function renderPortfolioChart(history) {
                     filter="drop-shadow(0 0 4px ${lineColor})"/>
         </svg>
     `;
+}
+
+// ============================================================================
+// ORDER BOOK MANAGEMENT
+// ============================================================================
+
+class OrderBookManager {
+    constructor() {
+        this.currentSymbol = null;
+        this.orderBookData = {};
+        this.init();
+    }
+
+    async init() {
+        this.startOrderBookStream();
+        this.initializeTabs();
+    }
+
+    startOrderBookStream() {
+        // WebSocket connection for order book data
+        this.orderBookEventSource = new EventSource('/api/order-book/stream');
+        
+        this.orderBookEventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.symbol && data.bids && data.asks) {
+                    this.updateOrderBook(data);
+                }
+            } catch (e) {
+                console.error('Order book parse error:', e);
+            }
+        };
+
+        this.orderBookEventSource.onerror = (error) => {
+            console.warn('[Order Book] Connection error, will retry...');
+            if (this.orderBookEventSource.readyState === EventSource.CLOSED) {
+                setTimeout(() => this.startOrderBookStream(), 5000);
+            }
+        };
+    }
+
+    async initializeTabs() {
+        try {
+            const response = await fetch('/api/symbols');
+            const symbols = await response.json();
+            
+            const tabsContainer = document.getElementById('order-book-tabs');
+            symbols.forEach(symbol => {
+                const tab = this.createTabElement(symbol);
+                tabsContainer.appendChild(tab);
+            });
+            
+            // Activate first tab
+            if (symbols.length > 0) {
+                this.switchOrderBookTab(symbols[0]);
+            }
+        } catch (error) {
+            console.error('Failed to load symbols:', error);
+        }
+    }
+
+    createTabElement(symbol) {
+        const tab = document.createElement('button');
+        tab.className = 'symbol-tab';
+        tab.textContent = symbol;
+        tab.onclick = () => this.switchOrderBookTab(symbol);
+        return tab;
+    }
+
+    switchOrderBookTab(symbol) {
+        // Update tab states
+        document.querySelectorAll('.symbol-tab').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        // Find the clicked tab and add active class
+        const clickedTab = document.querySelector(`.symbol-tab[onclick*="'${symbol}'"]`);
+        if (clickedTab) {
+            clickedTab.classList.add('active');
+        }
+        
+        // Update current symbol
+        this.currentSymbol = symbol;
+        
+        // Load order book data
+        this.loadOrderBookData(symbol);
+    }
+
+    async loadOrderBookData(symbol) {
+        try {
+            const response = await fetch(`/api/order-book/${symbol}`);
+            const data = await response.json();
+            
+            if (data.success && data.bids && data.asks) {
+                this.updateOrderBook(data);
+            } else {
+                this.showEmptyState();
+            }
+        } catch (error) {
+            console.error('Failed to load order book data:', error);
+            this.showEmptyState();
+        }
+    }
+
+    updateOrderBook(data) {
+        const container = document.getElementById('order-book-content');
+        
+        if (!data.symbol || data.symbol !== this.currentSymbol) {
+            return;
+        }
+
+        const { bids, asks, spread } = data;
+        
+        container.innerHTML = `
+            <div class="order-book-grid">
+                <div class="order-book-side bid-side">
+                    <div class="order-book-table">
+                        <div class="order-book-header">
+                            <span>Bids</span>
+                            <span>Size</span>
+                        </div>
+                        <div class="order-book-rows">
+                            ${this.renderOrderBookRows(bids.slice(0, 5), 'bid')}
+                        </div>
+                    </div>
+                </div>
+                <div class="order-book-side ask-side">
+                    <div class="order-book-table">
+                        <div class="order-book-header">
+                            <span>Asks</span>
+                            <span>Size</span>
+                        </div>
+                        <div class="order-book-rows">
+                            ${this.renderOrderBookRows(asks.slice(0, 5), 'ask')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Update ticker
+        this.updateOrderBookTicker(data);
+        
+        // Highlight spread
+        this.highlightSpread(spread);
+    }
+
+    renderOrderBookRows(sideData, side) {
+        return sideData.map(item => `
+            <div class="order-book-row">
+                <span class="order-book-price">${item.price}</span>
+                <span class="order-book-volume">${item.size}</span>
+            </div>
+        `).join('');
+    }
+
+    updateOrderBookTicker(data) {
+        const ticker = document.getElementById('order-book-ticker');
+        ticker.innerHTML = `
+            <span style="color: var(--text-muted);">Symbol:</span> ${data.symbol} |
+            <span style="color: var(--text-muted);">Spread:</span> ${data.spread.toFixed(2)}% |
+            <span style="color: var(--text-muted);">Last Update:</span> ${new Date().toLocaleTimeString()}
+        `;
+    }
+
+    highlightSpread(spread) {
+        const spreadElement = document.querySelector('.spread-highlight');
+        if (spreadElement) {
+            spreadElement.remove();
+        }
+
+        if (spread < 0.1) {
+            const spreadEl = document.createElement('div');
+            spreadEl.className = 'spread-highlight';
+            spreadEl.textContent = `Spread: ${spread}%`;
+            document.querySelector('.order-book-content').prepend(spreadEl);
+        }
+    }
+
+    showEmptyState() {
+        const container = document.getElementById('order-book-content');
+        container.innerHTML = '<div class="order-book-empty">Select a symbol to view order book</div>';
+    }
+}
+
+// ============================================================================
+// ACCOUNT INFORMATION MANAGEMENT
+// ============================================================================
+
+async function loadAccountInfo() {
+    try {
+        const response = await fetch('/api/account/info');
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update account information
+            document.getElementById('wallet-address').textContent = data.wallet_address;
+            document.getElementById('account-username').textContent = data.username;
+            document.getElementById('current-plan').textContent = `Current Plan: ${data.plan}`;
+            document.getElementById('spot-balance').textContent = `$${data.spot_balance.toFixed(2)}`;
+            document.getElementById('perps-balance').textContent = `$${data.perps_balance.toFixed(2)}`;
+            document.getElementById('unrealized-pnl').textContent = `+$${data.unrealized_pnl.toFixed(2)}`;
+            document.getElementById('margin-ratio').textContent = `${data.margin_ratio}%`;
+            document.getElementById('maintenance-margin').textContent = `$${data.maintenance_margin.toFixed(2)}`;
+            document.getElementById('account-leverage').textContent = `${data.leverage}x`;
+        }
+    } catch (error) {
+        console.error('Failed to load account info:', error);
+    }
+}
+
+// Copy wallet address functionality
+function copyWalletAddress() {
+    const address = document.getElementById('wallet-address').textContent;
+    navigator.clipboard.writeText(address).then(() => {
+        const button = event.target;
+        button.textContent = 'Copied!';
+        setTimeout(() => {
+            button.textContent = 'Copy';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy address:', err);
+    });
+}
+
+// ============================================================================
+// AGENT SETTINGS MANAGEMENT
+// ============================================================================
+
+async function loadAgentSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        const data = await response.json();
+        
+        if (data.success) {
+            const settings = data.settings;
+            
+            // Update agent settings display
+            document.getElementById('monitored-tokens').textContent = settings.monitored_tokens.join(', ');
+            document.getElementById('current-timeframe').textContent = settings.timeframe;
+            document.getElementById('current-strategy').textContent = settings.strategy_name || 'Default Strategy';
+            document.getElementById('confidence-threshold').textContent = settings.confidence_threshold;
+            document.getElementById('cycle-minutes').textContent = settings.sleep_minutes;
+        }
+    } catch (error) {
+        console.error('Failed to load settings:', error);
+    }
 }
 
 // ============================================================================

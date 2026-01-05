@@ -368,10 +368,282 @@ margin-left: -4px;
 .main-content {
     flex: 1;
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 9px;
-    padding: 18px 18px;
+    grid-template-columns: 25% 45% 30%;
+    gap: 16px;
+    padding: 18px;
     overflow-y: auto;
+}
+
+/* Column Layout */
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.column-left {
+    display: grid;
+    grid-template-rows: 30% 70%;
+    height: 100%;
+}
+
+.column-center {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.column-right {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Pulse Graph Section */
+.pulse-graph-section {
+    height: 100%;
+}
+
+/* Order Book Section */
+.order-book-section {
+    height: 100%;
+}
+
+.order-book-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.order-book-ticker {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.order-book-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.order-book-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Order Book Tabs */
+.symbol-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.symbol-tab {
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.symbol-tab.active {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: var(--text-primary);
+}
+
+/* Order Book Content */
+.order-book-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.order-book-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.bid-side {
+    background: rgba(0, 255, 136, 0.1);
+}
+
+.ask-side {
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.order-book-table {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.order-book-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.order-book-rows {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.order-book-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.order-book-price {
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.order-book-volume {
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+/* Spread Highlighting */
+.spread-highlight {
+    background: var(--accent-yellow);
+    border: 1px solid var(--accent-yellow);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Account Panel */
+.account-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.account-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.account-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-wallet {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.wallet-address {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.btn-copy {
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-copy:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent-blue);
+}
+
+.account-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.metric-item {
+    display: flex;
+    justify-content: space-between;
+}
+
+.metric-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.metric-value {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Settings Panel */
+.settings-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.setting-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setting-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.setting-value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.btn-edit-settings {
+    align-self: flex-end;
+    padding: 8px 16px;
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.btn-edit-settings:hover {
+    background: #2152ff;
 }
 
 .panel {
@@ -1020,13 +1292,167 @@ textarea.setting-input {
 }
 
 /* Responsive */
+@media (max-width: 1920px) {
+    .main-content {
+        grid-template-columns: 25% 45% 30%;
+        gap: 16px;
+        padding: 18px;
+    }
+}
+
 @media (max-width: 1200px) {
     .main-content {
+        grid-template-columns: 25% 45% 30%;
+        gap: 12px;
+        padding: 12px;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Mobile header - single line layout */
+    .header {
+        padding: 12px 15px;
+        flex-direction: row;
+        gap: 0;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .header h1 {
+        font-size: 16px;
+    }
+
+    .header-left {
+        gap: 8px;
+    }
+
+    .header-right {
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .timestamp {
+        font-size: 11px;
+    }
+
+    .icon-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .dropdown-menu {
+        top: 58px;
+        right: 15px;
+    }
+
+    /* Metrics in 2x2 grid */
+    .account-summary {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 9px;
+        padding: 9px 12px;
+    }
+
+    .summary-item .value {
+        font-size: 18px;
+    }
+
+    /* MAIN CONTENT: Stacked single column */
+    .main-content {
+        display: flex;
+        flex-direction: column;
+        padding: 12px 15px;
+        gap: 15px;
+    }
+
+    /* Column layout adjustments for mobile */
+    .column {
+        gap: 12px;
+    }
+
+    .column-left {
+        grid-template-rows: 30% 70%;
+    }
+
+    .column-center {
+        gap: 12px;
+    }
+
+    .column-right {
+        gap: 12px;
+    }
+
+    /* Compact position cards */
+    .position,
+    .trade {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        padding: 12px;
+    }
+
+    /* Smaller buttons */
+    .btn {
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+
+    .btn-small {
+        padding: 5px 10px;
+        font-size: 11px;
+    }
+
+    /* Order book adjustments */
+    .order-book-grid {
         grid-template-columns: 1fr;
     }
 
-    .console-panel {
-        order: -1;
+    .order-book-section {
+        grid-template-rows: auto;
+    }
+
+    /* Account metrics adjustments */
+    .account-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    /* Settings panel adjustments */
+    .setting-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .main-content {
+        padding: 8px 10px;
+        gap: 10px;
+    }
+
+    .column {
+        gap: 8px;
+    }
+
+    .account-summary {
+        grid-template-columns: 1fr;
+        gap: 6px;
+        padding: 6px 8px;
+    }
+
+    .summary-item .value {
+        font-size: 16px;
+    }
+
+    .card {
+        padding: 12px;
+    }
+
+    .position-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+
+    .position-actions-row {
+        flex-direction: column;
+        gap: 4px;
     }
 }
 
