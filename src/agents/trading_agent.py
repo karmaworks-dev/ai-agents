@@ -205,8 +205,8 @@ DEFAULT_SWARM_MODE = False  # True = Swarm Mode (all Models), False = Single Mod
 # 🌊 SWARM CONSENSUS SETTINGS
 # Minimum confidence threshold for swarm consensus to execute a trade
 # If consensus confidence is below this threshold, default to NOTHING
-# Recommended: 55-70% (requires clear majority, not just a tie)
-MIN_SWARM_CONFIDENCE = 70  # 70% = requires at least slight majority (e.g., 4/5 models agree)
+# Recommended: 55-65% (requires clear majority, not just a tie)
+MIN_SWARM_CONFIDENCE = 65  # 55% = requires at least slight majority (e.g., 3/5 models agree)
 
 # 📈 TRADING MODE SETTINGS
 LONG_ONLY = False 
@@ -412,8 +412,7 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-- Total Equity (Balance + Positions): ${available_balance:.2f}
-- Available USDC for New Trades: ${available_balance - total_position_value:.2f}
+- Available Balance: ${available_balance:.2f}
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
@@ -543,17 +542,9 @@ def get_account_balance(account=None):
 
 def calculate_position_size(account_balance):
     """Calculate position size based on account balance and MAX_POSITION_PERCENTAGE"""
-    # Minimum position size validation
-    MIN_POSITION_USD = 12.0  # HyperLiquid minimum order size
-
     if EXCHANGE in ["ASTER", "HYPERLIQUID"]:
         margin_to_use = account_balance * (MAX_POSITION_PERCENTAGE / 100)
         notional_position = margin_to_use * LEVERAGE
-
-        # Check minimum position size
-        if notional_position < MIN_POSITION_USD:
-            cprint(f"⚠️ Position size ${notional_position:.2f} below minimum ${MIN_POSITION_USD}", "yellow")
-            return 0  # Skip position for very small tokens
 
         cprint(f"   📊 Position Calculation ({EXCHANGE}):", "yellow", attrs=['bold'])
         cprint(f"   💵 Account Balance: ${account_balance:,.2f}", "white")
@@ -566,11 +557,6 @@ def calculate_position_size(account_balance):
     else:
         # For Solana: No leverage, direct position size
         position_size = account_balance * (MAX_POSITION_PERCENTAGE / 100)
-
-        # Check minimum position size
-        if position_size < MIN_POSITION_USD:
-            cprint(f"⚠️ Position size ${position_size:.2f} below minimum ${MIN_POSITION_USD}", "yellow")
-            return 0  # Skip position for very small tokens
 
         cprint(f"   📊 Position Calculation (SOLANA):", "yellow", attrs=['bold'])
         cprint(f"   💵 USDC Balance: ${account_balance:,.2f}", "white")
@@ -1469,7 +1455,7 @@ Return ONLY valid JSON with the following structure:
         return validated_decisions
 
     def execute_position_closes(self, close_decisions):
-        """Execute closes for positions marked by AI with enhanced reliability"""
+        """Execute closes for positions marked by AI"""
         if not close_decisions:
             return
 
@@ -1481,40 +1467,32 @@ Return ONLY valid JSON with the following structure:
 
         for symbol, decision in close_decisions.items():
             if decision["action"] == "CLOSE":
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        cprint(f"\n   📉 Closing {symbol} (attempt {attempt + 1}/{max_retries})...", "yellow")
-                        cprint(f"   💡 Reason: {decision['reasoning']}", "white")
+                try:
+                    cprint(f"\n   📉 Closing {symbol}...", "yellow")
+                    cprint(f"   💡 Reason: {decision['reasoning']}", "white")
 
-                        close_result = n.close_complete_position(symbol, self.account)
+                    close_result = n.close_complete_position(symbol, self.account)
 
-                        if close_result:
-                            # Remove from position tracker
-                            if POSITION_TRACKER_AVAILABLE:
-                                remove_position(symbol)
-                                cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
+                    if close_result:
+                        # Remove from position tracker
+                        if POSITION_TRACKER_AVAILABLE:
+                            remove_position(symbol)
+                            cprint(f"   📍 Removed {symbol} from position tracker", "cyan")
 
-                            cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
-                            add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
-                            closed_count += 1
-                            break  # Success, move to next symbol
-                        elif attempt < max_retries - 1:
-                            cprint(f"   ⚠️ Close attempt {attempt + 1} failed, retrying in 3 seconds...", "yellow")
-                            time.sleep(3)
-                        else:
-                            cprint(f"   ❌ Close failed after {max_retries} attempts", "red")
-                            add_console_log(f"❌ Close failed for {symbol} after {max_retries} attempts", "error")
+                        cprint(f"✅ {symbol} position closed successfully", "green", attrs=["bold"])
+                        add_console_log(f"✅ Closed {symbol} | Reason: {decision['reasoning']}", "success")
 
-                    except Exception as e:
-                        if attempt < max_retries - 1:
-                            cprint(f"   ⚠️ Close attempt {attempt + 1} error: {e}, retrying in 3 seconds...", "yellow")
-                            time.sleep(3)
-                        else:
-                            cprint(f"   ❌ Close failed after {max_retries} attempts: {e}", "red")
-                            add_console_log(f"❌ Close failed for {symbol}: {e}", "error")
+                        closed_count += 1
+                    else:
+                        cprint(f"   ⚠️ Position close returned False for {symbol}", "yellow")
+                        add_console_log(f"⚠️ Close may have failed for {symbol}", "warning")
 
-                time.sleep(2)  # Rate limiting between symbols
+                    time.sleep(2)
+
+                except Exception as e:
+                    cprint(f"   ❌ Error closing {symbol}: {e}", "red")
+                    import traceback
+                    traceback.print_exc()
 
         if closed_count > 0:
             cprint(
@@ -1924,7 +1902,6 @@ Return ONLY valid JSON with the following structure:
                 portfolio_state=portfolio_state,
                 signals=signals_text,
                 available_balance=total_equity,  # CRITICAL: Use total equity instead of available balance
-                total_position_value=total_position_value,  # Add actual position value for validation
                 leverage=LEVERAGE,
                 max_position_pct=MAX_POSITION_PERCENTAGE,
                 cash_buffer_pct=CASH_PERCENTAGE,
@@ -2053,41 +2030,30 @@ Return ONLY valid JSON with the following structure:
             cprint("   No signals after filtering.", "cyan")
             return []
 
-        # Calculate weighted allocation based on confidence
-        total_confidence = sum(sig["confidence"] for sig in new_signals)
-        
-        # Handle edge case where all confidences are zero
-        if total_confidence == 0:
-            # Fall back to equal distribution
-            margin_per_position = (usable_margin - cash_buffer) / len(new_signals)
-        else:
-            # Use confidence-weighted allocation
-            margin_per_position = (usable_margin - cash_buffer)
-
+        margin_per_position = (usable_margin - cash_buffer) / len(new_signals)
         min_margin = 12 / LEVERAGE
-        actions = []
 
+        if margin_per_position < min_margin:
+            # Take only highest confidence signals
+            new_signals.sort(key=lambda x: x["confidence"], reverse=True)
+            max_positions = int((usable_margin - cash_buffer) / min_margin)
+            new_signals = new_signals[:max(1, max_positions)]
+
+            # Prevent division by zero after filtering
+            if len(new_signals) == 0:
+                cprint("   Insufficient margin for any positions.", "yellow")
+                return []
+
+            margin_per_position = (usable_margin - cash_buffer) / len(new_signals)
+
+        actions = []
         for sig in new_signals:
             action_type = "OPEN_LONG" if sig["action"] == "BUY" else "OPEN_SHORT"
-            
-            # Calculate confidence-weighted margin
-            if total_confidence > 0:
-                confidence_weight = sig["confidence"] / total_confidence
-                margin_usd = margin_per_position * confidence_weight
-            else:
-                # Equal distribution fallback
-                margin_usd = margin_per_position
-
-            # Ensure minimum margin requirement
-            if margin_usd < min_margin:
-                cprint(f"   ⚠️ {sig['symbol']} allocation ${margin_usd:.2f} below minimum ${min_margin:.2f}", "yellow")
-                continue
-
             actions.append({
                 "symbol": sig["symbol"],
                 "action": action_type,
-                "margin_usd": round(margin_usd, 2),
-                "reason": f"Confidence-weighted: {sig['action']} signal ({sig['confidence']}% confidence)"
+                "margin_usd": round(margin_per_position, 2),
+                "reason": f"Fallback: {sig['action']} signal ({sig['confidence']}% confidence)"
             })
 
         return actions
@@ -2670,67 +2636,6 @@ Return ONLY valid JSON with the following structure:
         
         return False
 
-    def monitor_tp_sl_positions(self):
-        """Background TP/SL monitoring - runs every 60 seconds independently"""
-        cprint("🔄 Starting background TP/SL monitoring...", "cyan")
-        add_console_log("Background TP/SL monitoring started", "info")
-        
-        while not getattr(self, 'stop_monitoring', False):
-            try:
-                # Fetch current positions (reuses existing logic)
-                open_positions = self.fetch_all_open_positions()
-                
-                # Check each position for TP/SL thresholds
-                for symbol, positions in open_positions.items():
-                    for pos in positions:
-                        pnl_percent = pos["pnl_percent"]
-                        
-                        # Execute immediate TP/SL without AI processing
-                        if pnl_percent >= TAKE_PROFIT_THRESHOLD:
-                            self._execute_tp_close(symbol, pnl_percent)
-                        elif pnl_percent <= STOP_LOSS_THRESHOLD:
-                            self._execute_sl_close(symbol, pnl_percent)
-                            
-            except Exception as e:
-                cprint(f"⚠️ TP/SL monitoring error: {e}", "yellow")
-                add_console_log(f"TP/SL monitoring error: {e}", "warning")
-            
-            # Wait 60 seconds before next check
-            time.sleep(60)
-        
-        cprint("🛑 Background TP/SL monitoring stopped", "yellow")
-        add_console_log("Background TP/SL monitoring stopped", "info")
-
-    def _execute_tp_close(self, symbol, pnl_percent):
-        """Execute take profit close with minimal overhead"""
-        cprint(f"🚨 TAKE PROFIT: {symbol} at +{pnl_percent:.2f}%", "green", attrs=["bold"])
-        add_console_log(f"🚨 TP: {symbol} +{pnl_percent:.2f}%", "success")
-        
-        try:
-            close_result = n.close_complete_position(symbol, self.account)
-            if close_result and POSITION_TRACKER_AVAILABLE:
-                remove_position(symbol)
-                cprint(f"✅ {symbol} TP close successful", "green")
-            else:
-                cprint(f"⚠️ {symbol} TP close may have failed", "yellow")
-        except Exception as e:
-            cprint(f"❌ {symbol} TP close error: {e}", "red")
-
-    def _execute_sl_close(self, symbol, pnl_percent):
-        """Execute stop loss close with minimal overhead"""
-        cprint(f"🚨 STOP LOSS: {symbol} at {pnl_percent:.2f}%", "red", attrs=["bold"])
-        add_console_log(f"🚨 SL: {symbol} {pnl_percent:.2f}%", "warning")
-        
-        try:
-            close_result = n.close_complete_position(symbol, self.account)
-            if close_result and POSITION_TRACKER_AVAILABLE:
-                remove_position(symbol)
-                cprint(f"✅ {symbol} SL close successful", "green")
-            else:
-                cprint(f"⚠️ {symbol} SL close may have failed", "yellow")
-        except Exception as e:
-            cprint(f"❌ {symbol} SL close error: {e}", "red")
-
     def run(self):
         """Run the trading agent (implements BaseAgent interface)"""
         self.run_trading_cycle()
@@ -2784,28 +2689,7 @@ Return ONLY valid JSON with the following structure:
                 timeframe=self.timeframe,
                 exchange=EXCHANGE,
             )
-            
-            # Validate market data collection and retry if needed
-            retry_count = 0
-            max_retries = 3
-            while not market_data and retry_count < max_retries:
-                retry_count += 1
-                cprint(f"⚠️ No market data collected (attempt {retry_count}/{max_retries}) - retrying in 5 seconds...", "yellow")
-                time.sleep(5)
-                market_data = collect_all_tokens(
-                    tokens=tokens_to_trade,
-                    days_back=self.days_back,
-                    timeframe=self.timeframe,
-                    exchange=EXCHANGE,
-                )
-            
-            if market_data:
-                add_console_log(f"✅ Market data collected for {len(market_data)} tokens", "success")
-                cprint(f"📊 Successfully collected market data for {len(market_data)} tokens", "green")
-            else:
-                add_console_log(f"⚠️ Market data collection failed after {max_retries} attempts", "warning")
-                cprint(f"⚠️ Market data collection failed - proceeding with empty data", "yellow")
-                market_data = {}  # Ensure market_data is always a dict
+            add_console_log(f"Market data collected for {len(market_data)} tokens", "info")
 
             if self.should_stop():
                 add_console_log("ℹ️ Stop signal received - aborting cycle", "warning")
@@ -2975,6 +2859,7 @@ Return ONLY valid JSON with the following structure:
 
             cprint(f"💰 Account Balance: ${account_balance:,.2f}", "cyan", attrs=["bold"])
             cprint(f"🚀 Invested Total: ${invested_total:,.2f}", "cyan", attrs=["bold"])
+            return
 
         except Exception as e:
             cprint(f"\n❌ Error in trading cycle: {e}", "white", "on_red")
@@ -2988,21 +2873,12 @@ def main():
     print("🛑 Press Ctrl+C to stop.\n")
 
     agent = TradingAgent()
-    
-    # START BACKGROUND TP/SL MONITORING THREAD
-    import threading
-    monitoring_thread = threading.Thread(
-        target=agent.monitor_tp_sl_positions, 
-        daemon=True
-    )
-    monitoring_thread.start()
-    cprint("🔄 Background TP/SL monitoring thread started", "cyan")
 
-    try:
-        while True:
-            # Run the complete cycle (existing logic unchanged)
+    while True:
+        try:
+            # Run the complete cycle
             agent.run_trading_cycle()
-            
+
             # Log next cycle time BEFORE sleeping
             next_run = datetime.now() + timedelta(minutes=SLEEP_BETWEEN_RUNS_MINUTES)
             cprint(f"\n⏰ Next cycle at UTC: {next_run.strftime('%d-%m-%Y %H:%M:%S')}", "white", "on_green")
@@ -3011,21 +2887,16 @@ def main():
             # Sleep until next cycle
             time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
 
-    except KeyboardInterrupt:
-        cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
-        add_console_log("👋 Agent shutting down gracefully...", "info")
-        
-        # STOP BACKGROUND MONITORING
-        agent.stop_monitoring = True
-        monitoring_thread.join(timeout=2)
-        cprint("🛑 Background TP/SL monitoring stopped", "yellow")
-        
-    except Exception as e:
-        cprint(f"\n❌ Error in main loop: {e}", "white", "on_red")
-        import traceback
-        traceback.print_exc()
-        cprint(f"\n⏰ Retrying in {SLEEP_BETWEEN_RUNS_MINUTES} minutes...", "yellow")
-        time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
+        except KeyboardInterrupt:
+            cprint("\n👋 AI Agent shutting down gracefully...", "white", "on_blue")
+            add_console_log("👋 Agent shutting down gracefully...", "info")
+            break
+        except Exception as e:
+            cprint(f"\n❌ Error in main loop: {e}", "white", "on_red")
+            import traceback
+            traceback.print_exc()
+            cprint(f"\n⏰ Retrying in {SLEEP_BETWEEN_RUNS_MINUTES} minutes...", "yellow")
+            time.sleep(SLEEP_BETWEEN_RUNS_MINUTES * 60)
 
 
 if __name__ == "__main__":
