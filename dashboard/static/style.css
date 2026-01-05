@@ -326,34 +326,42 @@ margin-left: -4px;
 /* Stacked Account Summary (for column 3) */
 .account-summary.stacked {
     grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 16px;
+    gap: 8px;
+    padding: 12px;
+    text-align: right;
 }
 
 .summary-item {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
+    align-items: flex-end;
 }
 
 .summary-item .label {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     color: var(--text-muted);
     font-weight: 600;
 }
 
 .summary-item .value {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--text-primary);
+    line-height: 1.1;
+}
+
+.summary-item .value.large {
+    font-size: 24px;
 }
 
 .summary-item .sublabel {
-    font-size: 9px;
+    font-size: 10px;
     color: var(--text-secondary);
+    opacity: 0.8;
 }
 
 .pnl.positive {
