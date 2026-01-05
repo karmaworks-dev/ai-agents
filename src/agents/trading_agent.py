@@ -412,8 +412,7 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-- Total Equity (Balance + Positions): ${available_balance:.2f}
-- Available USDC for New Trades: ${available_balance - total_position_value:.2f}
+- Available Balance: ${available_balance:.2f}
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
@@ -1903,7 +1902,6 @@ Return ONLY valid JSON with the following structure:
                 portfolio_state=portfolio_state,
                 signals=signals_text,
                 available_balance=total_equity,  # CRITICAL: Use total equity instead of available balance
-                total_position_value=total_position_value,  # Add actual position value for validation
                 leverage=LEVERAGE,
                 max_position_pct=MAX_POSITION_PERCENTAGE,
                 cash_buffer_pct=CASH_PERCENTAGE,
