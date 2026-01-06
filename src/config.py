@@ -18,8 +18,8 @@ EXCLUDED_TOKENS = [USDC_ADDRESS, SOL_ADDRESS]
 
 # ⚡ HyperLiquid Configuration
 # Main trading tokens - diversified portfolio
-HYPERLIQUID_SYMBOLS = ['BTC', 'ETH', 'SOL', 'LTC', 'AAVE', 'AVAX', 'HYPE']
-HYPERLIQUID_LEVERAGE = 20  # Current leverage setting (matches trading_agent.py)
+HYPERLIQUID_SYMBOLS = ['BTC', 'ETH', 'SOL', 'LTC', 'AAVE', 'HYPE']
+HYPERLIQUID_LEVERAGE = 10  # Current leverage setting (matches trading_agent.py)
 
 # Position sizing 🎯
 # CRITICAL FOR $10 ACCOUNT:
@@ -84,8 +84,8 @@ buy_under = 0.99  # Buy if price drops 1% below target
 sell_over = 1.01  # Sell if price rises 1% above target
 
 # Data collection settings 📈
-DAYSBACK_4_DATA = 1
-DATA_TIMEFRAME = '5m' 
+DAYSBACK_4_DATA = 2
+DATA_TIMEFRAME = '30m' 
 SAVE_OHLCV_DATA = False 
 
 # AI Model Settings
@@ -105,7 +105,7 @@ SAVE_OHLCV_DATA = False
 # SINGLE MODEL SETTINGS (DEFAULT: DeepSeek V3.1)
 AI_MODEL_TYPE = 'ollamafreeapi'      # FREE API - no key required
 AI_MODEL = "deepseek-v3.1:671b"       # ⚡ RECOMMENDED for trading
-AI_MAX_TOKENS = 8000                  # Increased for multi-step reasoning
+AI_MAX_TOKENS = 8024                  # Increased for multi-step reasoning
 AI_TEMPERATURE = 0.6                  # Official DeepSeek recommended "sweet spot"
 
 # Trading Strategy Agent Settings
