@@ -245,8 +245,8 @@ MAX_POSITION_PERCENTAGE = 80
 LEVERAGE = 10                     
 
 # Stop Loss & Take Profit
-STOP_LOSS_PERCENTAGE = 2.0      # SL @ -2% PnL
-TAKE_PROFIT_PERCENTAGE = 5.0    # TP @ +5% PnL 
+STOP_LOSS_PERCENTAGE = 1.5      # SL @ -1.5% PnL
+TAKE_PROFIT_PERCENTAGE = 4.5    # TP @ +4.5% PnL 
 PNL_CHECK_INTERVAL = 1          # check PnL every 5 minutes          
 
 # Legacy settings 
