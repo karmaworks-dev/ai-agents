@@ -47,6 +47,18 @@ from src.utils.settings_manager import (
     get_hyperliquid_tokens,
     get_all_token_symbols
 )
+# Import config_manager for centralized configuration
+try:
+    from src.utils.config_manager import (
+        get_cash_percentage, get_take_profit_percent, get_stop_loss_percent,
+        get_max_position_percentage, get_pnl_check_interval, get_cycle_time,
+        get_timeframe, get_days_back, get_ai_provider, get_ai_model,
+        get_ai_temperature, get_ai_max_tokens, get_leverage, get_monitored_tokens,
+        get_swarm_mode, get_swarm_models, update_settings, validate_config
+    )
+    CONFIG_MANAGER_AVAILABLE = True
+except ImportError:
+    CONFIG_MANAGER_AVAILABLE = False
 from src.utils.secrets_manager import (
     get_providers_status,
     set_api_key,
@@ -964,12 +976,39 @@ def run_trading_agent():
 
     add_console_log("AI Trading agent started", "success")
 
-    # Load user settings
-    user_settings = load_settings()
+    # Load user settings - prefer config_manager if available, fall back to settings_manager
+    if CONFIG_MANAGER_AVAILABLE:
+        # Use config_manager for centralized configuration
+        timeframe = get_timeframe()
+        days_back = get_days_back()
+        sleep_minutes = get_cycle_time()
+        ai_provider = get_ai_provider()
+        ai_model = get_ai_model()
+        ai_temperature = get_ai_temperature()
+        ai_max_tokens = get_ai_max_tokens()
+        swarm_mode = get_swarm_mode()
+        swarm_models = get_swarm_models()
+        monitored_tokens = get_monitored_tokens()
+        
+        # Build user_settings dict for compatibility with existing code
+        user_settings = {
+            'timeframe': timeframe,
+            'days_back': days_back,
+            'sleep_minutes': sleep_minutes,
+            'ai_provider': ai_provider,
+            'ai_model': ai_model,
+            'ai_temperature': ai_temperature,
+            'ai_max_tokens': ai_max_tokens,
+            'swarm_mode': swarm_mode,
+            'swarm_models': swarm_models,
+            'monitored_tokens': monitored_tokens
+        }
+    else:
+        # Fall back to settings_manager
+        user_settings = load_settings()
+        monitored_tokens = user_settings.get('monitored_tokens', ['ETH', 'BTC', 'SOL'])
+        swarm_mode = user_settings.get('swarm_mode', 'single')
 
-    # Get monitored tokens from settings (use user's selection, not hardcoded)
-    monitored_tokens = user_settings.get('monitored_tokens', ['ETH', 'BTC', 'SOL'])
-    swarm_mode = user_settings.get('swarm_mode', 'single')
     mode_display = 'Swarm' if swarm_mode == 'swarm' else 'Single Agent'
 
     add_console_log(f"Settings: {user_settings.get('timeframe')} timeframe, {user_settings.get('days_back')} days, {user_settings.get('sleep_minutes')} min cycle", "info")

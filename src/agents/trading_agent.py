@@ -113,6 +113,19 @@ try:
 except ImportError:
     AI_GATEWAY_AVAILABLE = False
 
+# Import config_manager for centralized configuration
+try:
+    from src.utils.config_manager import (
+        get_cash_percentage, get_take_profit_percent, get_stop_loss_percent,
+        get_max_position_percentage, get_pnl_check_interval, get_cycle_time,
+        get_timeframe, get_days_back, get_ai_provider, get_ai_model,
+        get_ai_temperature, get_ai_max_tokens, get_leverage, get_monitored_tokens,
+        get_swarm_mode, get_swarm_models
+    )
+    CONFIG_MANAGER_AVAILABLE = True
+except ImportError:
+    CONFIG_MANAGER_AVAILABLE = False
+
 # Import intelligence integrator for strategy and volume signals
 try:
     from src.utils.intelligence_integrator import (
@@ -233,6 +246,10 @@ MIN_CLOSE_CONFIDENCE = 70
 # Profit threshold for automatic position closing (percentage), Positions with profit >= this value close immediately, bypassing other checks
 TP_THRESHOLD = 0.5
 
+# PnL Check Interval (minutes) - How often to check position P&L for TP/SL triggers
+# Default: 1 minute (matches frontend default)
+PNL_CHECK_INTERVAL = 1
+
 # SINGLE MODEL SETTINGS
 AI_MODEL_TYPE = 'openrouter' 
 AI_MODEL_NAME = 'x-ai/grok-4.1-fast' 
@@ -247,7 +264,7 @@ LEVERAGE = 10
 # Stop Loss & Take Profit
 STOP_LOSS_PERCENTAGE = 2.0      # SL @ -2% PnL
 TAKE_PROFIT_PERCENTAGE = 5.0    # TP @ +5% PnL 
-PNL_CHECK_INTERVAL = 1          # check PnL every 5 minutes          
+PNL_CHECK_INTERVAL = 1          # check PnL every 1 minute
 
 # Legacy settings 
 usd_size = 25                  
@@ -599,27 +616,42 @@ class TradingAgent:
             swarm_models (list): List of swarm model configs for multi-agent consensus.
         """
         # Store configurable settings as instance variables
-        self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
-        self.days_back = days_back if days_back is not None else DAYSBACK_4_DATA
-        self.stop_check_callback = stop_check_callback
-
-        # Store AI settings (use passed values or fall back to config defaults)
-        self.ai_provider = ai_provider if ai_provider is not None else AI_MODEL_TYPE
-        self.ai_model_name = ai_model if ai_model is not None else AI_MODEL_NAME
-        self.ai_temperature = ai_temperature if ai_temperature is not None else AI_TEMPERATURE
-        self.ai_max_tokens = ai_max_tokens if ai_max_tokens is not None else AI_MAX_TOKENS
-
-        # Store swarm mode settings (use passed values or fall back to defaults)
-        self.use_swarm_mode = (swarm_mode == 'swarm') if swarm_mode is not None else DEFAULT_SWARM_MODE
-        self.swarm_models_config = swarm_models or []
-
-        # Store symbols to analyze (use passed values or fall back to config)
-        if symbols is not None:
-            self.symbols = symbols
-        elif EXCHANGE in ["ASTER", "HYPERLIQUID"]:
-            self.symbols = SYMBOLS
+        # Use config_manager for defaults when available, fall back to hardcoded values
+        if CONFIG_MANAGER_AVAILABLE:
+            self.timeframe = timeframe if timeframe is not None else get_timeframe()
+            self.days_back = days_back if days_back is not None else get_days_back()
+            self.ai_provider = ai_provider if ai_provider is not None else get_ai_provider()
+            self.ai_model_name = ai_model if ai_model is not None else get_ai_model()
+            self.ai_temperature = ai_temperature if ai_temperature is not None else get_ai_temperature()
+            self.ai_max_tokens = ai_max_tokens if ai_max_tokens is not None else get_ai_max_tokens()
+            self.use_swarm_mode = (swarm_mode == 'swarm') if swarm_mode is not None else (get_swarm_mode() == 'swarm')
+            self.swarm_models_config = swarm_models if swarm_models is not None else get_swarm_models()
+            
+            # Get symbols from config_manager, fall back to hardcoded lists
+            user_tokens = get_monitored_tokens()
+            if user_tokens:
+                self.symbols = user_tokens
+            elif EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                self.symbols = SYMBOLS
+            else:
+                self.symbols = MONITORED_TOKENS
         else:
-            self.symbols = MONITORED_TOKENS
+            # Fall back to original hardcoded defaults
+            self.timeframe = timeframe if timeframe is not None else DATA_TIMEFRAME
+            self.days_back = days_back if days_back is not None else DAYSBACK_4_DATA
+            self.ai_provider = ai_provider if ai_provider is not None else AI_MODEL_TYPE
+            self.ai_model_name = ai_model if ai_model is not None else AI_MODEL_NAME
+            self.ai_temperature = ai_temperature if ai_temperature is not None else AI_TEMPERATURE
+            self.ai_max_tokens = ai_max_tokens if ai_max_tokens is not None else AI_MAX_TOKENS
+            self.use_swarm_mode = (swarm_mode == 'swarm') if swarm_mode is not None else DEFAULT_SWARM_MODE
+            self.swarm_models_config = swarm_models or []
+            
+            if symbols is not None:
+                self.symbols = symbols
+            elif EXCHANGE in ["ASTER", "HYPERLIQUID"]:
+                self.symbols = SYMBOLS
+            else:
+                self.symbols = MONITORED_TOKENS
 
         self.account = None
         if EXCHANGE == "HYPERLIQUID":
@@ -1859,13 +1891,26 @@ Return ONLY valid JSON with the following structure:
 
             # CRITICAL FIX: Calculate total equity including existing positions
             total_equity = account_balance + total_position_value
-            available_balance = account_balance - total_position_value
+            
+            # CRITICAL FIX: Calculate cash reserve from total equity (NOT available balance)
+            cash_reserve = total_equity * (CASH_PERCENTAGE / 100)
+            
+            # Calculate usable funds for new positions
+            # Existing positions are already allocated, don't count them again
+            usable_funds = account_balance - cash_reserve
+            
+            # Ensure we don't allocate more than max percentage of total equity
+            max_allocation = total_equity * (MAX_POSITION_PERCENTAGE / 100)
+            usable_funds = min(usable_funds, max_allocation)
+            
             min_order_notional = 12.0  # HyperLiquid minimum
 
             cprint(f"💰 Account Balance (USDC): ${account_balance:.2f}", "cyan")
             cprint(f"💎 Total Equity (Balance + Positions): ${total_equity:.2f}", "cyan")
             cprint(f"📊 Positions Value: ${total_position_value:.2f}", "cyan")
-            cprint(f"💵 Available Balance: ${available_balance:.2f}", "green")
+            cprint(f"💵 Available Balance: ${account_balance:.2f}", "cyan")
+            cprint(f"🔒 Cash Reserve ({CASH_PERCENTAGE}%): ${cash_reserve:.2f}", "green")
+            cprint(f"🎯 Usable Funds: ${usable_funds:.2f}", "green")
 
             # ================================================================
             # STEP 4: Build Portfolio State Summary for AI
@@ -1909,7 +1954,7 @@ Return ONLY valid JSON with the following structure:
             prompt = SMART_ALLOCATION_PROMPT.format(
                 portfolio_state=portfolio_state,
                 signals=signals_text,
-                available_balance=total_equity,  # CRITICAL: Use total equity instead of available balance
+                available_balance=usable_funds,  # CRITICAL: Use usable funds instead of total equity
                 leverage=LEVERAGE,
                 max_position_pct=MAX_POSITION_PERCENTAGE,
                 cash_buffer_pct=CASH_PERCENTAGE,
@@ -2388,6 +2433,9 @@ Return ONLY valid JSON with the following structure:
             cprint(f"✅ EXECUTION COMPLETE: {executed_count} succeeded, {failed_count} failed", "green", attrs=["bold"])
             cprint(f"{'=' * 60}\n", "green")
             add_console_log(f"Execution complete: {executed_count} succeeded, {failed_count} failed", "success")
+
+            # DOUBLE-CHECK: Validate cash reserve enforcement
+            self._validate_cash_reserve_enforcement()
 
         except Exception as e:
             cprint(f"❌ Error in execute_allocations: {e}", "red")
