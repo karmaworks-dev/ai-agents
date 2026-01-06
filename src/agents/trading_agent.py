@@ -54,6 +54,14 @@ from src.data.ohlcv_collector import collect_all_tokens
 from src.agents.strategy_agent import StrategyAgent
 
 # Import shared logging utility (prevents circular import with trading_app)
+
+# Import TP/SL utility for background monitoring
+try:
+    from src.utils.take_profit_stop_loss import run_tp_sl_monitor
+    TP_SL_MONITOR_AVAILABLE = True
+except ImportError:
+    TP_SL_MONITOR_AVAILABLE = False
+    cprint("⚠️ TP/SL monitor not available", "yellow")
 try:
     from src.utils.logging_utils import add_console_log, log_position_open
 except ImportError:
@@ -2851,6 +2859,21 @@ def main():
     print("🛑 Press Ctrl+C to stop.\n")
 
     agent = TradingAgent()
+
+    # Start TP/SL monitor as background thread if available
+    tp_sl_thread = None
+    if TP_SL_MONITOR_AVAILABLE and agent.account:
+        try:
+            import threading
+            tp_sl_thread = threading.Thread(
+                target=run_tp_sl_monitor, 
+                args=(agent.account, 30),
+                daemon=True
+            )
+            tp_sl_thread.start()
+            cprint("✅ TP/SL Monitor started in background", "green")
+        except Exception as e:
+            cprint(f"⚠️ Could not start TP/SL monitor: {e}", "yellow")
 
     while True:
         try:
