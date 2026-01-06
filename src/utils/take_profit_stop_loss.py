@@ -6,7 +6,7 @@ Standalone utility that monitors positions every 30 seconds and automatically
 closes positions when TP/SL thresholds are hit, while enforcing cash reserve requirements.
 
 Configuration:
-- Uses TAKE_PROFIT_THRESHOLD and STOP_LOSS_THRESHOLD from config.py
+- Uses TAKE_PROFIT_PERCENT and STOP_LOSS_PERCENT from config.py
 - Enforces CASH_PERCENTAGE reserve for fee payments
 - Runs independently of main trading cycle
 
@@ -21,8 +21,7 @@ from datetime import datetime
 from termcolor import cprint
 
 # Import configuration values
-from src.config import CASH_PERCENTAGE
-from src.utils.close_validator import TAKE_PROFIT_THRESHOLD, STOP_LOSS_THRESHOLD
+from src.config import CASH_PERCENTAGE, TAKE_PROFIT_PERCENT, STOP_LOSS_PERCENT
 
 # Import necessary functions from HyperLiquid utilities
 from src.nice_funcs_hyperliquid import (
@@ -33,9 +32,9 @@ from src.nice_funcs_hyperliquid import (
 )
 
 # Use exact values from config.py
-TP_THRESHOLD = TAKE_PROFIT_THRESHOLD  # 6.0%
-SL_THRESHOLD = STOP_LOSS_THRESHOLD    # -2.0%
-CASH_RESERVE_PCT = CASH_PERCENTAGE    # 10%
+TP_THRESHOLD = TAKE_PROFIT_PERCENT      # Take Profit percentage
+SL_THRESHOLD = STOP_LOSS_PERCENT       # Stop Loss percentage
+CASH_RESERVE_PCT = CASH_PERCENTAGE     # Cash reserve percentage
 
 def enforce_cash_reserve(account) -> bool:
     """
@@ -93,7 +92,7 @@ def check_tp_sl_positions(account) -> list:
                 if not im_in_pos:
                     continue
                 
-                # Check TP threshold (6.0%)
+                # Check TP threshold
                 if pnl_perc >= TP_THRESHOLD:
                     cprint(f"🎯 TAKE PROFIT: {symbol} at +{pnl_perc:.2f}% (threshold: +{TP_THRESHOLD}%)", "green")
                     if enforce_cash_reserve(account):
@@ -107,7 +106,7 @@ def check_tp_sl_positions(account) -> list:
                     else:
                         cprint(f"⚠️  Skipping {symbol} close - Cash reserve would be violated", "yellow")
                 
-                # Check SL threshold (-2.0%)
+                # Check SL threshold
                 elif pnl_perc <= SL_THRESHOLD:
                     cprint(f"🚨 STOP LOSS: {symbol} at {pnl_perc:.2f}% (threshold: {SL_THRESHOLD}%)", "red")
                     if enforce_cash_reserve(account):

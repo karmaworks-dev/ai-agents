@@ -53,6 +53,8 @@ TOKEN_EXCHANGE_MAP = {
 # 🛡️ Risk Management Settings (Tuned for $10 Account)
 CASH_PERCENTAGE = 10  # Keep 10% of account as backup
 MAX_POSITION_PERCENTAGE = 90  # Allow using full balance since account is small
+TAKE_PROFIT_PERCENT = 20  # Take profit at +20%
+STOP_LOSS_PERCENT = -10   # Stop loss at -10%
 STOPLOSS_PRICE = 0    # Not used in this specific agent logic yet
 BREAKOUT_PRICE = 0
 SLEEP_AFTER_CLOSE = 30 # Sleep 30s after closing a trade
