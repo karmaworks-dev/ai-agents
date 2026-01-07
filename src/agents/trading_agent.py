@@ -420,7 +420,9 @@ AI TRADING SIGNALS:
 {signals}
 
 ACCOUNT INFO:
-- Available Equity: ${total_equity:.2f}
+ACCOUNT INFO:
+- Total Equity: ${total_equity:.2f} (includes positions)
+- Available Balance: ${available_balance:.2f} (actual available USDC balance)
 - Leverage: {leverage}x
 - Max Position %: {max_position_pct}%
 - Cash Buffer: {cash_buffer_pct}%
@@ -1858,7 +1860,8 @@ Return ONLY valid JSON with the following structure:
                 return []
 
             # CRITICAL FIX: Use total equity including existing positions
-            total_equity = n.get_account_value(self.address)  # True equity with PnL
+            account_balance = get_account_balance(self.account)  # Free USDC
+            total_equity = n.get_account_value(self.address)  # Total equity
             min_order_notional = 12.0  # HyperLiquid minimum
 
             cprint(f"💰 Account Balance (USDC): ${account_balance:.2f}", "cyan")
