@@ -246,8 +246,8 @@ LEVERAGE = 10
 
 # Stop Loss & Take Profit
 STOP_LOSS_PERCENTAGE = 1.5      # SL @ -1.5% PnL
-TAKE_PROFIT_PERCENTAGE = 4.5    # TP @ +4.5% PnL 
-PNL_CHECK_INTERVAL = 1          # check PnL every 5 minutes          
+TAKE_PROFIT_PERCENTAGE = 2.5    # TP @ +2.5% PnL 
+PNL_CHECK_INTERVAL = 1          # check PnL every 1 minutes          
 
 # Legacy settings 
 usd_size = 25                  
