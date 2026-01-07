@@ -5,7 +5,7 @@ Implements sophisticated decision-making for position closes.
 
 Tier 0: Emergency Stop Loss (-2% or worse) - FORCE CLOSE
 Tier 1: Profit Target (+0.5% or better) - AI decides
-Tier 2: Age Gating (young positions < 1.5h need protection)
+Tier 2: Age Gating (young positions < 0.1h need protection)
 Tier 3: Mature Position Analysis with loss-adjusted confidence
 
 Final Gate: Adjusted AI confidence must be >= 80% to close
@@ -20,16 +20,16 @@ from enum import Enum
 # ============================================================================
 
 # Stop Loss Threshold (Tier 0)
-STOP_LOSS_THRESHOLD = -2.0  # Force close at -2% or worse
+STOP_LOSS_THRESHOLD = 1.5  # Force close at -1.5% or worse
 
 # Take Profit Threshold (Tier 0) - FORCE CLOSE like stop loss
-TAKE_PROFIT_THRESHOLD = 6.0  # Force close at +6% or better
+TAKE_PROFIT_THRESHOLD = 4.5  # Force close at +4.5% or better
 
 # Profit Target (Tier 1) - AI decides
 PROFIT_TARGET_THRESHOLD = 0.5  # AI can decide at +0.5% or better
 
 # Age Thresholds (Tier 2)
-YOUNG_POSITION_HOURS = 1.5  # Positions younger than this get special protection
+YOUNG_POSITION_HOURS = 0.1  # Positions younger than this get special protection
 
 # Loss Categories
 SEVERE_LOSS_THRESHOLD = -1.2  # -2.0% to -1.2% = severe
