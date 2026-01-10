@@ -1916,14 +1916,19 @@ Return ONLY valid JSON with the following structure:
 
             if not ai_response:
                 cprint("❌ No response from AI. Using fallback allocation.", "red")
+                add_console_log("❌ No AI response - using fallback", "error")
                 return self._fallback_equal_allocation(signals, total_equity, open_positions)
 
             # ================================================================
             # STEP 6: Parse AI Response
             # ================================================================
+            add_console_log("Parsing AI allocation response...", "info")
             try:
                 # Extract JSON from response
                 allocation_plan = extract_json_from_text(ai_response)
+
+                # Debug: Show raw AI response summary
+                cprint(f"   🤖 AI returned {len(allocation_plan.get('actions', [])) if allocation_plan else 0} actions", "cyan")
 
                 if not allocation_plan or "actions" not in allocation_plan:
                     cprint("⚠️ AI response missing 'actions'. Using fallback.", "yellow")
@@ -1931,22 +1936,46 @@ Return ONLY valid JSON with the following structure:
 
                 actions = allocation_plan["actions"]
 
-                # Validate and filter actions
+                # Validate and filter actions with detailed rejection tracking
                 valid_actions = []
+                rejected_actions = {}  # Track rejection reasons
+
                 for action in actions:
                     if not isinstance(action, dict):
+                        rejected_actions["invalid_format"] = rejected_actions.get("invalid_format", 0) + 1
                         continue
+
+                    symbol = action.get("symbol", "unknown")
+                    action_type = action.get("action", "unknown")
+                    reason = action.get("reason", "")
+
                     if "symbol" not in action or "action" not in action:
+                        rejected_actions[f"{symbol}: missing fields"] = rejected_actions.get(f"{symbol}: missing fields", 0) + 1
                         continue
+
                     if action["symbol"] not in self.symbols:
+                        rejected_actions[f"{symbol}: not in symbols"] = rejected_actions.get(f"{symbol}: not in symbols", 0) + 1
+                        cprint(f"   ⚠️ {symbol}: Skipped - not in configured symbols {self.symbols}", "yellow")
                         continue
 
                     # Skip HOLD actions - nothing to execute
                     if action["action"] == "HOLD":
                         cprint(f"   ⏸️ {action['symbol']}: HOLD - {action.get('reason', 'No change needed')}", "cyan")
+                        rejected_actions[f"{symbol}: HOLD"] = rejected_actions.get(f"{symbol}: HOLD", 0) + 1
                         continue
 
                     valid_actions.append(action)
+
+                # Log rejection summary if any actions were rejected
+                if rejected_actions:
+                    cprint(f"   📊 Action filtering: {len(valid_actions)} valid, {sum(rejected_actions.values())} filtered", "yellow")
+                    add_console_log(f"Actions: {len(valid_actions)} valid, {sum(rejected_actions.values())} filtered", "warning")
+                    for reason, count in rejected_actions.items():
+                        cprint(f"      - {reason}: {count}", "yellow")
+
+                    # If all actions were filtered out, log the reasons
+                    if len(valid_actions) == 0:
+                        add_console_log(f"All actions filtered: {rejected_actions}", "warning")
 
                 # ================================================================
                 # STEP 7: Display AI Allocation Plan
