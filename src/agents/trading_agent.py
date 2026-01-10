@@ -347,9 +347,9 @@ Respond in this exact format:
    - Market conditions
    - Confidence level (as a percentage, e.g. 75%)
 
-Remember: 
+Remember:
 - Always prioritizes risk management! 🛡️
-- Never trade USDC or SOL directly
+- Never trade USDC directly (it's the quote currency)
 - Consider both technical and strategy signals
 """
 
